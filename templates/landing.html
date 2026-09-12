@@ -2,59 +2,79 @@
 
 {% block title %}Spendly — Track Every Rupee{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+{% endblock %}
+
 {% block content %}
 
-<section class="hero">
-    <div class="hero-inner">
-        <div class="hero-badge">Personal Finance Tracker</div>
-        <h1 class="hero-title">
-            Know where your<br>
-            <em>money goes</em>
-        </h1>
-        <p class="hero-subtitle">
-            Log expenses, understand your spending patterns,
-            and take control of your financial life —
-            one transaction at a time.
-        </p>
-        <div class="hero-actions">
-            <a href="{{ url_for('register') }}" class="btn-primary">Start tracking free</a>
-            <a href="{{ url_for('login') }}" class="btn-ghost">Sign in</a>
-        </div>
-    </div>
-    <div class="hero-visual">
-        <div class="mock-card">
-            <div class="mock-card-header">
-                <span class="mock-label">March 2026</span>
-                <span class="mock-total">₹12,450</span>
+<section class="hero-banner">
+    <div class="hero-banner-inner">
+        <div class="hero-banner-copy">
+            <h1 class="hero-banner-title">
+                Manage Your<br>
+                Expenses Easily<br>
+                With <span class="hero-banner-highlight">Spendly</span>
+            </h1>
+            <p class="hero-banner-subtitle">
+                Log expenses, understand your spending patterns,
+                and take control of your financial life —
+                one transaction at a time.
+            </p>
+            <div class="hero-banner-actions">
+                <a href="{{ url_for('register') }}" class="hero-btn-primary">Start tracking free</a>
+                <a href="{{ url_for('login') }}" class="hero-btn-ghost">Sign in <span class="hero-btn-arrow">→</span></a>
             </div>
-            <div class="mock-bars">
-                <div class="mock-bar-row">
-                    <span class="mock-cat">Bills</span>
-                    <div class="mock-bar-track">
-                        <div class="mock-bar" style="width: 72%"></div>
+        </div>
+        <div class="hero-banner-visual">
+            <div class="hcard hcard-expenses">
+                <span class="hcard-label">Total Expenses</span>
+                <span class="hcard-value">₹12,450 <span class="hcard-change">+8%</span></span>
+                <span class="hcard-period">This month</span>
+            </div>
+            <div class="hcard hcard-analytics">
+                <div class="hcard-analytics-header">
+                    <span>Analytics</span>
+                    <div class="hcard-legend">
+                        <span class="hcard-dot hcard-dot-revenue"></span>Revenue
+                        <span class="hcard-dot hcard-dot-expenses"></span>Expenses
                     </div>
-                    <span class="mock-amt">₹4,500</span>
                 </div>
-                <div class="mock-bar-row">
-                    <span class="mock-cat">Food</span>
-                    <div class="mock-bar-track">
-                        <div class="mock-bar mock-bar-2" style="width: 52%"></div>
-                    </div>
-                    <span class="mock-amt">₹3,200</span>
+                <div class="hcard-chart">
+                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 55%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 40%"></span></div>
+                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 80%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 65%"></span></div>
+                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 70%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 50%"></span></div>
+                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 90%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 75%"></span></div>
+                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 60%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 45%"></span></div>
                 </div>
-                <div class="mock-bar-row">
-                    <span class="mock-cat">Health</span>
-                    <div class="mock-bar-track">
-                        <div class="mock-bar mock-bar-3" style="width: 33%"></div>
+            </div>
+            <div class="hcard hcard-revenue">
+                <span class="hcard-label">Total Revenue</span>
+                <span class="hcard-value">₹8,675 <span class="hcard-change">+34%</span></span>
+                <span class="hcard-period">This month</span>
+            </div>
+            <div class="hcard hcard-visa">
+                <span class="hcard-visa-brand">VISA</span>
+                <span class="hcard-visa-number">•••• •••• •••• 7602</span>
+                <span class="hcard-visa-holder">Card Holder</span>
+            </div>
+            <div class="hcard hcard-transactions">
+                <h4 class="hcard-tx-title">Latest Transactions</h4>
+                <div class="hcard-tx-row">
+                    <span class="hcard-tx-icon hcard-tx-icon-in">₹</span>
+                    <div class="hcard-tx-text">
+                        <strong>Income: Salary</strong>
+                        <small>Successfully</small>
                     </div>
-                    <span class="mock-amt">₹2,050</span>
+                    <span class="hcard-tx-amt hcard-tx-amt-pos">+₹51,200</span>
                 </div>
-                <div class="mock-bar-row">
-                    <span class="mock-cat">Transport</span>
-                    <div class="mock-bar-track">
-                        <div class="mock-bar mock-bar-4" style="width: 28%"></div>
+                <div class="hcard-tx-row">
+                    <span class="hcard-tx-icon hcard-tx-icon-out">⚡</span>
+                    <div class="hcard-tx-text">
+                        <strong>Electric Bill</strong>
+                        <small>Successfully</small>
                     </div>
-                    <span class="mock-amt">₹1,800</span>
+                    <span class="hcard-tx-amt hcard-tx-amt-neg">−₹480</span>
                 </div>
             </div>
         </div>
