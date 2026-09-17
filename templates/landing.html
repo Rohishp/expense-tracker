@@ -10,71 +10,58 @@
 
 <section class="hero-banner">
     <div class="hero-banner-inner">
-        <div class="hero-banner-copy">
-            <h1 class="hero-banner-title">
-                Manage Your<br>
-                Expenses Easily<br>
-                With <span class="hero-banner-highlight">Spendly</span>
-            </h1>
-            <p class="hero-banner-subtitle">
-                Log expenses, understand your spending patterns,
-                and take control of your financial life —
-                one transaction at a time.
-            </p>
-            <div class="hero-banner-actions">
-                <a href="{{ url_for('register') }}" class="hero-btn-primary">Start tracking free</a>
-                <a href="{{ url_for('login') }}" class="hero-btn-ghost">Sign in <span class="hero-btn-arrow">→</span></a>
-            </div>
+        <div class="hero-badge2">
+            <span class="hero-badge2-dot"></span>
+            Free to use · No credit card needed
         </div>
-        <div class="hero-banner-visual">
-            <div class="hcard hcard-expenses">
-                <span class="hcard-label">Total Expenses</span>
-                <span class="hcard-value">₹12,450 <span class="hcard-change">+8%</span></span>
-                <span class="hcard-period">This month</span>
+        <h1 class="hero-banner-title2">
+            Track every rupee.<br>
+            <span class="hero-banner-highlight2">Know where it goes.</span>
+        </h1>
+        <p class="hero-banner-subtitle2">
+            Spendly helps you log expenses, spot patterns, and stay
+            on budget — without the spreadsheet headache.
+        </p>
+        <div class="hero-banner-actions2">
+            <a href="{{ url_for('register') }}" class="hero-btn-dark">Create free account</a>
+            <button type="button" class="hero-btn-dark" id="how-it-works-btn">See how it works</button>
+        </div>
+
+        <div class="hero-mock">
+            <div class="hero-mock-dots">
+                <span class="hero-mock-dot hero-mock-dot-red"></span>
+                <span class="hero-mock-dot hero-mock-dot-yellow"></span>
+                <span class="hero-mock-dot hero-mock-dot-green"></span>
             </div>
-            <div class="hcard hcard-analytics">
-                <div class="hcard-analytics-header">
-                    <span>Analytics</span>
-                    <div class="hcard-legend">
-                        <span class="hcard-dot hcard-dot-revenue"></span>Revenue
-                        <span class="hcard-dot hcard-dot-expenses"></span>Expenses
-                    </div>
+            <div class="hero-mock-stats">
+                <div class="hero-stat-card">
+                    <span class="hero-stat-label">This month</span>
+                    <span class="hero-stat-value">₹18,240</span>
+                    <span class="hero-stat-change hero-stat-change-neg">+12% vs last</span>
                 </div>
-                <div class="hcard-chart">
-                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 55%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 40%"></span></div>
-                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 80%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 65%"></span></div>
-                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 70%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 50%"></span></div>
-                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 90%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 75%"></span></div>
-                    <div class="hcard-chart-col"><span class="hcard-chart-bar hcard-chart-bar-a" style="height: 60%"></span><span class="hcard-chart-bar hcard-chart-bar-b" style="height: 45%"></span></div>
+                <div class="hero-stat-card">
+                    <span class="hero-stat-label">Budget left</span>
+                    <span class="hero-stat-value">₹6,760</span>
+                    <span class="hero-stat-change hero-stat-change-pos">43% remaining</span>
+                </div>
+                <div class="hero-stat-card">
+                    <span class="hero-stat-label">Transactions</span>
+                    <span class="hero-stat-value">34</span>
+                    <span class="hero-stat-change hero-stat-change-muted">this month</span>
                 </div>
             </div>
-            <div class="hcard hcard-revenue">
-                <span class="hcard-label">Total Revenue</span>
-                <span class="hcard-value">₹8,675 <span class="hcard-change">+34%</span></span>
-                <span class="hcard-period">This month</span>
-            </div>
-            <div class="hcard hcard-visa">
-                <span class="hcard-visa-brand">VISA</span>
-                <span class="hcard-visa-number">•••• •••• •••• 7602</span>
-                <span class="hcard-visa-holder">Card Holder</span>
-            </div>
-            <div class="hcard hcard-transactions">
-                <h4 class="hcard-tx-title">Latest Transactions</h4>
-                <div class="hcard-tx-row">
-                    <span class="hcard-tx-icon hcard-tx-icon-in">₹</span>
-                    <div class="hcard-tx-text">
-                        <strong>Income: Salary</strong>
-                        <small>Successfully</small>
-                    </div>
-                    <span class="hcard-tx-amt hcard-tx-amt-pos">+₹51,200</span>
+            <div class="hero-mock-categories">
+                <div class="hero-cat-row">
+                    <span class="hero-cat-label">Food</span>
+                    <div class="hero-cat-track"><div class="hero-cat-bar hero-cat-bar-food" style="width: 78%"></div></div>
                 </div>
-                <div class="hcard-tx-row">
-                    <span class="hcard-tx-icon hcard-tx-icon-out">⚡</span>
-                    <div class="hcard-tx-text">
-                        <strong>Electric Bill</strong>
-                        <small>Successfully</small>
-                    </div>
-                    <span class="hcard-tx-amt hcard-tx-amt-neg">−₹480</span>
+                <div class="hero-cat-row">
+                    <span class="hero-cat-label">Travel</span>
+                    <div class="hero-cat-track"><div class="hero-cat-bar hero-cat-bar-travel" style="width: 62%"></div></div>
+                </div>
+                <div class="hero-cat-row">
+                    <span class="hero-cat-label">Bills</span>
+                    <div class="hero-cat-track"><div class="hero-cat-bar hero-cat-bar-bills" style="width: 52%"></div></div>
                 </div>
             </div>
         </div>
@@ -109,4 +96,58 @@
     </div>
 </section>
 
+<div class="video-modal-overlay" id="video-modal-overlay" hidden>
+    <div class="video-modal" role="dialog" aria-modal="true" aria-label="Product demo video">
+        <button type="button" class="video-modal-close" id="video-modal-close" aria-label="Close video">&times;</button>
+        <div class="video-modal-frame">
+            <iframe
+                id="video-modal-iframe"
+                src=""
+                title="Spendly demo video"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+            ></iframe>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        var YOUTUBE_EMBED_URL = "https://www.youtube.com/embed/dQw4w9WgXcQ";
+
+        var openBtn = document.getElementById("how-it-works-btn");
+        var overlay = document.getElementById("video-modal-overlay");
+        var closeBtn = document.getElementById("video-modal-close");
+        var iframe = document.getElementById("video-modal-iframe");
+
+        function openModal() {
+            iframe.src = YOUTUBE_EMBED_URL + "?autoplay=1";
+            overlay.hidden = false;
+        }
+
+        function closeModal() {
+            overlay.hidden = true;
+            iframe.src = "";
+        }
+
+        openBtn.addEventListener("click", openModal);
+        closeBtn.addEventListener("click", closeModal);
+
+        overlay.addEventListener("click", function (event) {
+            if (event.target === overlay) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape" && !overlay.hidden) {
+                closeModal();
+            }
+        });
+    })();
+</script>
 {% endblock %}
