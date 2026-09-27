@@ -4,6 +4,7 @@ import sqlite3
 from flask import Flask, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from database import queries
 from database.db import get_db, init_db, seed_db
 
 app = Flask(__name__)
@@ -119,37 +120,27 @@ def logout():
 @app.route("/profile")
 @login_required
 def profile():
-    user = {
-        "name": session["user_name"],
-        "email": session["user_email"],
-        "member_since": "March 2024",
-    }
+    user_id = session["user_id"]
+
+    # --- user card + summary stats (Subagent: summary) ---
+    user = queries.get_user_by_id(user_id)
     initials = "".join(part[0].upper() for part in user["name"].split()[:2])
+    stats = queries.get_summary_stats(user_id)
+    total_spent = stats["total_spent"]
+    transaction_count = stats["transaction_count"]
+    top_category = stats["top_category"]
+    # --- end user card + summary stats ---
 
-    transactions = [
-        {"date": "2026-09-24", "description": "Grocery run", "category": "Food", "amount": 42.30},
-        {"date": "2026-09-22", "description": "Metro card top-up", "category": "Transport", "amount": 15.00},
-        {"date": "2026-09-20", "description": "Electricity bill", "category": "Bills", "amount": 68.50},
-        {"date": "2026-09-18", "description": "Pharmacy", "category": "Health", "amount": 24.75},
-        {"date": "2026-09-15", "description": "Movie night", "category": "Entertainment", "amount": 18.00},
-    ]
+    # --- transaction history (Subagent: transaction-history) ---
+    transactions = queries.get_recent_transactions(user_id)
+    # --- end transaction history ---
 
-    total_spent = sum(t["amount"] for t in transactions)
-    transaction_count = len(transactions)
-
-    totals_by_category = {}
-    for t in transactions:
-        totals_by_category[t["category"]] = totals_by_category.get(t["category"], 0) + t["amount"]
-    top_category = max(totals_by_category, key=totals_by_category.get)
-
+    # --- category breakdown (Subagent: category-breakdown) ---
     category_breakdown = [
-        {
-            "category": category,
-            "total": amount,
-            "percent": round(amount / total_spent * 100) if total_spent else 0,
-        }
-        for category, amount in sorted(totals_by_category.items(), key=lambda kv: kv[1], reverse=True)
+        {"category": c["name"], "total": c["amount"], "percent": c["pct"]}
+        for c in queries.get_category_breakdown(user_id)
     ]
+    # --- end category breakdown ---
 
     return render_template(
         "profile.html",
