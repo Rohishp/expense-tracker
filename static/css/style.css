@@ -16,6 +16,14 @@
     --accent-2-light: #fdf3e3;
     --danger: #c0392b;
     --danger-light: #fdecea;
+    --cat-transport: #4a6fa5;
+    --cat-transport-light: #e8eef7;
+    --cat-entertainment: #8b5e83;
+    --cat-entertainment-light: #f4edf3;
+    --cat-shopping: #2f8577;
+    --cat-shopping-light: #e7f4f1;
+    --cat-other: #6b6b6b;
+    --cat-other-light: #ececec;
     --border: #e4e1da;
     --border-soft: #eeebe4;
 
@@ -112,6 +120,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 .nav-cta:hover { background: var(--accent) !important; }
+
+.nav-username {
+    color: var(--ink-muted);
+    font-weight: 500;
+}
 
 /* ------------------------------------------------------------------ */
 /* Main                                                                */

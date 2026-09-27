@@ -1,3 +1,4 @@
+import functools
 import sqlite3
 
 from flask import Flask, redirect, render_template, request, session, url_for
@@ -11,6 +12,15 @@ app.secret_key = "dev-secret-key-change-in-production"
 with app.app_context():
     init_db()
     seed_db()
+
+
+def login_required(view_func):
+    @functools.wraps(view_func)
+    def wrapper(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("login"))
+        return view_func(*args, **kwargs)
+    return wrapper
 
 
 # ------------------------------------------------------------------ #
@@ -67,7 +77,7 @@ def login():
         conn = get_db()
         try:
             user = conn.execute(
-                "SELECT id, password_hash FROM users WHERE email = ?",
+                "SELECT id, name, email, password_hash FROM users WHERE email = ?",
                 (email,),
             ).fetchone()
         finally:
@@ -79,6 +89,8 @@ def login():
             return render_template("login.html", error="Invalid email or password.")
 
         session["user_id"] = user["id"]
+        session["user_name"] = user["name"]
+        session["user_email"] = user["email"]
         return redirect(url_for("profile"))
 
     return render_template("login.html")
@@ -105,8 +117,50 @@ def logout():
 
 
 @app.route("/profile")
+@login_required
 def profile():
-    return "Profile page — coming in Step 4"
+    user = {
+        "name": session["user_name"],
+        "email": session["user_email"],
+        "member_since": "March 2024",
+    }
+    initials = "".join(part[0].upper() for part in user["name"].split()[:2])
+
+    transactions = [
+        {"date": "2026-09-24", "description": "Grocery run", "category": "Food", "amount": 42.30},
+        {"date": "2026-09-22", "description": "Metro card top-up", "category": "Transport", "amount": 15.00},
+        {"date": "2026-09-20", "description": "Electricity bill", "category": "Bills", "amount": 68.50},
+        {"date": "2026-09-18", "description": "Pharmacy", "category": "Health", "amount": 24.75},
+        {"date": "2026-09-15", "description": "Movie night", "category": "Entertainment", "amount": 18.00},
+    ]
+
+    total_spent = sum(t["amount"] for t in transactions)
+    transaction_count = len(transactions)
+
+    totals_by_category = {}
+    for t in transactions:
+        totals_by_category[t["category"]] = totals_by_category.get(t["category"], 0) + t["amount"]
+    top_category = max(totals_by_category, key=totals_by_category.get)
+
+    category_breakdown = [
+        {
+            "category": category,
+            "total": amount,
+            "percent": round(amount / total_spent * 100) if total_spent else 0,
+        }
+        for category, amount in sorted(totals_by_category.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+
+    return render_template(
+        "profile.html",
+        user=user,
+        initials=initials,
+        total_spent=total_spent,
+        transaction_count=transaction_count,
+        top_category=top_category,
+        transactions=transactions,
+        category_breakdown=category_breakdown,
+    )
 
 
 @app.route("/expenses/add")
