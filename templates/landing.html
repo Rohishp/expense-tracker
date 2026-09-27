@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Spendly — Track Every Rupee{% endblock %}
+{% block title %}Spendly — Track Every Euro{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
@@ -10,12 +10,9 @@
 
 <section class="hero-banner">
     <div class="hero-banner-inner">
-        <div class="hero-badge2">
-            <span class="hero-badge2-dot"></span>
-            Free to use · No credit card needed
-        </div>
+        
         <h1 class="hero-banner-title2">
-            Track every rupee.<br>
+            Track every euro.<br>
             <span class="hero-banner-highlight2">Know where it goes.</span>
         </h1>
         <p class="hero-banner-subtitle2">
@@ -36,13 +33,13 @@
             <div class="hero-mock-stats">
                 <div class="hero-stat-card">
                     <span class="hero-stat-label">This month</span>
-                    <span class="hero-stat-value">₹18,240</span>
+                    <span class="hero-stat-value">€3,240</span>
                     <span class="hero-stat-change hero-stat-change-neg">+12% vs last</span>
                 </div>
                 <div class="hero-stat-card">
                     <span class="hero-stat-label">Budget left</span>
-                    <span class="hero-stat-value">₹6,760</span>
-                    <span class="hero-stat-change hero-stat-change-pos">43% remaining</span>
+                    <span class="hero-stat-value">€1,760</span>
+                    <span class="hero-stat-change hero-stat-change-pos">45.6% remaining</span>
                 </div>
                 <div class="hero-stat-card">
                     <span class="hero-stat-label">Transactions</span>
@@ -71,7 +68,7 @@
 <section class="features">
     <div class="features-inner">
         <div class="feature-card">
-            <div class="feature-icon">₹</div>
+            <div class="feature-icon">€</div>
             <h3 class="feature-title">Log expenses instantly</h3>
             <p class="feature-body">Add any expense in seconds. Category, amount, date, description — all in one simple form.</p>
         </div>
