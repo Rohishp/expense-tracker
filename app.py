@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 from flask import (
     Flask,
+    abort,
     flash,
     redirect,
     render_template,
@@ -297,6 +298,27 @@ def _validate_expense_form(form):
     }, None
 
 
+def _expense_to_form(expense):
+    """Return the form values used to pre-fill the edit form."""
+    return {
+        "amount": expense["amount"],
+        "category": expense["category"],
+        "date": expense["date"],
+        "description": expense["description"] or "",
+    }
+
+
+def _render_expense_form(form, error=None, expense_id=None):
+    return render_template(
+        "add_expense.html",
+        error=error,
+        categories=CATEGORIES,
+        form=form,
+        expense_id=expense_id,
+        max_description_length=MAX_DESCRIPTION_LENGTH,
+    )
+
+
 @app.route("/expenses/add", methods=["GET", "POST"])
 @login_required
 def add_expense():
@@ -310,18 +332,30 @@ def add_expense():
             queries.create_expense(session["user_id"], **clean)
             return redirect(url_for("profile"))
 
-    return render_template(
-        "add_expense.html",
-        error=error,
-        categories=CATEGORIES,
-        form=form,
-        max_description_length=MAX_DESCRIPTION_LENGTH,
-    )
+    return _render_expense_form(form, error)
 
 
-@app.route("/expenses/<int:id>/edit")
+@app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
+@login_required
 def edit_expense(id):
-    return "Edit expense — coming in Step 8"
+    # Ownership is part of the query, so missing and foreign ids both 404.
+    expense = queries.get_expense(id, session["user_id"])
+    if expense is None:
+        abort(404)
+
+    form = _expense_to_form(expense)
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_expense_form(form)
+        if not error:
+            # False means the row vanished since the read above.
+            if not queries.update_expense(id, session["user_id"], **clean):
+                abort(404)
+            return redirect(url_for("profile"))
+
+    return _render_expense_form(form, error, expense_id=id)
 
 
 @app.route("/expenses/<int:id>/delete")

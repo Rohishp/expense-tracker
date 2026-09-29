@@ -36,6 +36,45 @@ def create_expense(user_id, amount, category, expense_date, description):
         conn.close()
 
 
+def get_expense(expense_id, user_id):
+    """Return the expense as a dict if it belongs to `user_id`, else None."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, amount, category, date, description FROM expenses "
+            "WHERE id = ? AND user_id = ?",
+            (expense_id, user_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "amount": float(row["amount"]),
+            "category": row["category"],
+            "date": row["date"],
+            "description": row["description"],
+        }
+    finally:
+        conn.close()
+
+
+def update_expense(
+    expense_id, user_id, amount, category, expense_date, description
+):
+    """Update an expense owned by `user_id`. Return True if a row changed."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "UPDATE expenses SET amount = ?, category = ?, date = ?, "
+            "description = ? WHERE id = ? AND user_id = ?",
+            (amount, category, expense_date, description, expense_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
 def get_user_by_id(user_id):
     """Return {"name", "email", "member_since"} for the user, or None.
 
@@ -115,13 +154,14 @@ def get_recent_transactions(user_id, limit=10, date_from=None, date_to=None):
     conn = get_db()
     try:
         rows = conn.execute(
-            "SELECT date, description, category, amount FROM expenses "
+            "SELECT id, date, description, category, amount FROM expenses "
             "WHERE user_id = ?" + date_sql +
             " ORDER BY date DESC, id DESC LIMIT ?",
             (user_id, *date_params, limit),
         ).fetchall()
         return [
             {
+                "id": row["id"],
                 "date": row["date"],
                 "description": row["description"],
                 "category": row["category"],

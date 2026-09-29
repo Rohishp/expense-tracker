@@ -61,6 +61,7 @@
                             <th>Description</th>
                             <th>Category</th>
                             <th class="amount-col">Amount</th>
+                            <th class="action-col"><span class="visually-hidden">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -70,10 +71,11 @@
                             <td>{{ t.description }}</td>
                             <td><span class="category-badge category-badge-{{ t.category|lower }}">{{ t.category }}</span></td>
                             <td class="amount-col">€{{ "%.2f"|format(t.amount) }}</td>
+                            <td class="action-col"><a class="row-action" href="{{ url_for('edit_expense', id=t.id) }}">Edit</a></td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="4" class="history-empty">No transactions in this range</td>
+                            <td colspan="5" class="history-empty">No transactions in this range</td>
                         </tr>
                         {% endfor %}
                     </tbody>
