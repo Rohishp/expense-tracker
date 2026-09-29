@@ -75,6 +75,20 @@ def update_expense(
         conn.close()
 
 
+def delete_expense(expense_id, user_id):
+    """Delete an expense owned by `user_id`. Return True if a row was deleted."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM expenses WHERE id = ? AND user_id = ?",
+            (expense_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
 def get_user_by_id(user_id):
     """Return {"name", "email", "member_since"} for the user, or None.
 

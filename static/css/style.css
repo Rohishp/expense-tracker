@@ -154,6 +154,12 @@ a { color: inherit; text-decoration: none; }
     border: 1px solid var(--danger);
 }
 
+.flash-success {
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+}
+
 /* ------------------------------------------------------------------ */
 /* Hero                                                                */
 /* ------------------------------------------------------------------ */
