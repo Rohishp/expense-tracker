@@ -233,6 +233,11 @@
     text-decoration: underline;
 }
 
+.row-action-danger {
+    color: var(--danger);
+    margin-left: 0.5rem;
+}
+
 .visually-hidden {
     position: absolute;
     width: 1px;

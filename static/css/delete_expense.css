@@ -1,0 +1,26 @@
+/* ------------------------------------------------------------------ */
+/* Delete expense confirmation                                         */
+/* ------------------------------------------------------------------ */
+
+.expense-summary {
+    margin-bottom: 1.5rem;
+}
+
+.expense-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 0.95rem;
+}
+
+.expense-summary-row dt {
+    color: var(--ink-muted);
+}
+
+.expense-summary-row dd {
+    color: var(--ink);
+    text-align: right;
+    overflow-wrap: anywhere;
+}

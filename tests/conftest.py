@@ -23,4 +23,5 @@ def app(db_path):
     from app import app as flask_app
 
     flask_app.config["TESTING"] = True
+    flask_app.config["CSRF_ENABLED"] = False
     yield flask_app

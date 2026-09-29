@@ -1,6 +1,8 @@
 import calendar
 import functools
 import math
+import os
+import secrets
 import sqlite3
 from datetime import date, datetime
 
@@ -20,7 +22,13 @@ from database import queries
 from database.db import CATEGORIES, get_db, init_db, seed_db
 
 app = Flask(__name__)
-app.secret_key = "dev-secret-key-change-in-production"
+# Set SECRET_KEY in the environment for any real deployment; the fallback is
+# only for local development.
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+# Lax stops browsers sending the session cookie on cross-site POSTs.
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Tests turn this off so they can post forms without fetching a token first.
+app.config["CSRF_ENABLED"] = True
 
 with app.app_context():
     init_db()
@@ -32,6 +40,29 @@ def login_required(view_func):
     def wrapper(*args, **kwargs):
         if not session.get("user_id"):
             return redirect(url_for("login"))
+        return view_func(*args, **kwargs)
+    return wrapper
+
+
+def _csrf_token():
+    """Return the session's CSRF token, creating it on first use."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(16)
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = _csrf_token
+
+
+def csrf_protect(view_func):
+    """Reject POSTs whose form token does not match the session token."""
+    @functools.wraps(view_func)
+    def wrapper(*args, **kwargs):
+        if request.method == "POST" and app.config["CSRF_ENABLED"]:
+            sent = request.form.get("csrf_token", "")
+            expected = session.get("csrf_token", "")
+            if not expected or not secrets.compare_digest(sent, expected):
+                abort(400)
         return view_func(*args, **kwargs)
     return wrapper
 
@@ -321,6 +352,7 @@ def _render_expense_form(form, error=None, expense_id=None):
 
 @app.route("/expenses/add", methods=["GET", "POST"])
 @login_required
+@csrf_protect
 def add_expense():
     form = {"date": date.today().isoformat()}
     error = None
@@ -337,6 +369,7 @@ def add_expense():
 
 @app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
 @login_required
+@csrf_protect
 def edit_expense(id):
     # Ownership is part of the query, so missing and foreign ids both 404.
     expense = queries.get_expense(id, session["user_id"])
@@ -358,10 +391,24 @@ def edit_expense(id):
     return _render_expense_form(form, error, expense_id=id)
 
 
-@app.route("/expenses/<int:id>/delete")
+@app.route("/expenses/<int:id>/delete", methods=["GET", "POST"])
+@login_required
+@csrf_protect
 def delete_expense(id):
-    return "Delete expense — coming in Step 9"
+    # Ownership is part of the query, so missing and foreign ids both 404.
+    expense = queries.get_expense(id, session["user_id"])
+    if expense is None:
+        abort(404)
+
+    if request.method == "POST":
+        # False means the row vanished since the read above.
+        if not queries.delete_expense(id, session["user_id"]):
+            abort(404)
+        flash("Expense deleted.", "success")
+        return redirect(url_for("profile"))
+
+    return render_template("delete_expense.html", expense=expense)
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "1") == "1", port=5001)
