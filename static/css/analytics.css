@@ -1,0 +1,177 @@
+/* ------------------------------------------------------------------ */
+/* Analytics — Coming Soon                                             */
+/* ------------------------------------------------------------------ */
+
+.analytics-section {
+    position: relative;
+    overflow: hidden;
+    min-height: calc(100vh - 60px - 100px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--paper) 0%, #fafafa 50%, #e8e8e8 100%);
+}
+
+.analytics-orb {
+    position: absolute;
+    width: 24rem;
+    height: 24rem;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.05;
+    filter: blur(64px);
+    pointer-events: none;
+}
+
+.analytics-orb-top { top: 0; left: 0; transform: translate(-50%, -50%); }
+.analytics-orb-bottom { bottom: 0; right: 0; transform: translate(50%, 50%); }
+
+.coming-soon-card {
+    position: relative;
+    width: 100%;
+    max-width: 32rem;
+    text-align: center;
+    background: var(--paper-card);
+    border: 1px solid var(--border-soft);
+    border-radius: 1.5rem;
+    padding: 2.5rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.coming-soon-corner {
+    position: absolute;
+    width: 5rem;
+    height: 5rem;
+    opacity: 0.1;
+    pointer-events: none;
+}
+
+.coming-soon-corner-top {
+    top: 0;
+    right: 0;
+    border-bottom-left-radius: 100%;
+    background: linear-gradient(to bottom left, var(--accent), transparent);
+}
+
+.coming-soon-corner-bottom {
+    bottom: 0;
+    left: 0;
+    border-top-right-radius: 100%;
+    background: linear-gradient(to top right, var(--accent), transparent);
+}
+
+.coming-soon-icon-wrap {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
+.coming-soon-glow {
+    position: absolute;
+    width: 6rem;
+    height: 6rem;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.2;
+    filter: blur(24px);
+}
+
+.coming-soon-icon {
+    position: relative;
+    width: 6rem;
+    height: 6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000));
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s;
+}
+
+.coming-soon-icon:hover { transform: scale(1.05); }
+
+.coming-soon-icon svg { width: 3rem; height: 3rem; }
+
+.coming-soon-badge {
+    display: inline-block;
+    margin-bottom: 1.25rem;
+    padding: 0.5rem 1.25rem;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--accent) 85%, #fff));
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.coming-soon-title {
+    margin-bottom: 1rem;
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    background: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--accent) 60%, #000));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+.coming-soon-text {
+    max-width: 24rem;
+    margin: 0 auto 2rem;
+    color: var(--ink-muted);
+    line-height: 1.625;
+}
+
+.coming-soon-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.coming-soon-dots span {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: linear-gradient(to right, var(--accent), color-mix(in srgb, var(--accent) 85%, #fff));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    animation: coming-soon-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.coming-soon-dots span:nth-child(2) { animation-delay: 0.2s; }
+.coming-soon-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes coming-soon-pulse {
+    50% { opacity: 0.5; }
+}
+
+.coming-soon-note {
+    margin-top: 1rem;
+    color: var(--ink-faint);
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
+}
+
+.coming-soon-line {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 8rem;
+    height: 4px;
+    transform: translateX(-50%);
+    border-radius: var(--radius-pill);
+    background: linear-gradient(to right, transparent, var(--accent), transparent);
+    opacity: 0.3;
+}
+
+@media (max-width: 600px) {
+    .analytics-section { padding: 1rem; }
+    .coming-soon-card { padding: 2rem 1.5rem; }
+}
