@@ -218,6 +218,30 @@
     text-align: right;
 }
 
+.action-col {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.row-action {
+    color: var(--accent);
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.row-action:hover {
+    text-decoration: underline;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 .category-badge {
     display: inline-block;
     font-size: 0.75rem;

@@ -77,7 +77,7 @@ def test_get_recent_transactions_with_expenses(db_path):
     transactions = queries.get_recent_transactions(user_id)
     assert len(transactions) == DEMO_TRANSACTION_COUNT
     for t in transactions:
-        assert set(t.keys()) == {"date", "description", "category", "amount"}
+        assert set(t.keys()) == {"id", "date", "description", "category", "amount"}
     dates = [t["date"] for t in transactions]
     assert dates == sorted(dates, reverse=True)
 

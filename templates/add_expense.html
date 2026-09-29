@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Add Expense — Spendly{% endblock %}
+{% set editing = expense_id is not none %}
+{% block title %}{{ "Edit" if editing else "Add" }} Expense — Spendly{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">
@@ -11,8 +12,8 @@
     <div class="expense-form-container">
 
         <div class="expense-form-header">
-            <h1 class="expense-form-title">Add expense</h1>
-            <p class="expense-form-subtitle">Record a new expense to track your spending</p>
+            <h1 class="expense-form-title">{{ "Edit expense" if editing else "Add expense" }}</h1>
+            <p class="expense-form-subtitle">{{ "Update the details of this expense" if editing else "Record a new expense to track your spending" }}</p>
         </div>
 
         <div class="expense-form-card">
@@ -20,7 +21,7 @@
             <div class="auth-error">{{ error }}</div>
             {% endif %}
 
-            <form method="POST" action="{{ url_for('add_expense') }}">
+            <form method="POST" action="{{ url_for('edit_expense', id=expense_id) if editing else url_for('add_expense') }}">
                 <div class="form-group">
                     <label for="amount">Amount</label>
                     <input type="number" id="amount" name="amount" class="form-input"
@@ -47,7 +48,7 @@
                            value="{{ form.get('description', '') }}">
                 </div>
                 <div class="expense-form-actions">
-                    <button type="submit" class="btn-submit">Add expense</button>
+                    <button type="submit" class="btn-submit">{{ "Save changes" if editing else "Add expense" }}</button>
                     <a href="{{ url_for('profile') }}" class="btn-ghost">Cancel</a>
                 </div>
             </form>
