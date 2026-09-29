@@ -20,6 +20,21 @@
             </div>
         </div>
 
+        <div class="filter-bar">
+            <div class="preset-list">
+                {% for p in presets %}
+                <a href="{{ p.url }}" class="preset-link{% if p.active %} is-active{% endif %}">{{ p.label }}</a>
+                {% endfor %}
+            </div>
+            <form class="custom-range{% if custom_active %} is-active{% endif %}" method="get" action="{{ url_for('profile') }}">
+                <label for="date-from">From</label>
+                <input class="form-input" type="date" id="date-from" name="date_from" value="{{ date_from or '' }}" required>
+                <label for="date-to">To</label>
+                <input class="form-input" type="date" id="date-to" name="date_to" value="{{ date_to or '' }}" required>
+                <button type="submit" class="btn-primary">Apply</button>
+            </form>
+        </div>
+
         <div class="stats-row">
             <div class="stat-tile">
                 <span class="stat-label">Total spent</span>
@@ -54,6 +69,10 @@
                             <td>{{ t.description }}</td>
                             <td><span class="category-badge category-badge-{{ t.category|lower }}">{{ t.category }}</span></td>
                             <td class="amount-col">€{{ "%.2f"|format(t.amount) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="history-empty">No transactions in this range</td>
                         </tr>
                         {% endfor %}
                     </tbody>

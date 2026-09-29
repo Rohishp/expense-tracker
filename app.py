@@ -1,7 +1,17 @@
+import calendar
 import functools
 import sqlite3
+from datetime import date, datetime
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import queries
@@ -22,6 +32,73 @@ def login_required(view_func):
             return redirect(url_for("login"))
         return view_func(*args, **kwargs)
     return wrapper
+
+
+def _parse_date_range(args):
+    """Read `date_from` / `date_to` (YYYY-MM-DD) from the query string.
+
+    Returns (date_from, date_to, error) with dates as zero-padded ISO
+    strings. The filter needs both dates; if either is missing or malformed
+    both come back None (all-time view, no error). If date_from is after
+    date_to both come back None with an error message to flash.
+    """
+    parsed = []
+    for key in ("date_from", "date_to"):
+        raw = args.get(key, "").strip()
+        try:
+            # strptime accepts unpadded input like "2026-9-5"; keeping the
+            # parsed date lets us compare real dates and emit padded ISO text.
+            parsed.append(datetime.strptime(raw, "%Y-%m-%d").date())
+        except ValueError:
+            return None, None, None
+
+    date_from, date_to = parsed
+    if date_from > date_to:
+        return None, None, "Start date must be before end date."
+    return date_from.isoformat(), date_to.isoformat(), None
+
+
+def _months_ago(day, months):
+    """Return `day` moved back by `months`, clamping to the month's length."""
+    index = day.year * 12 + (day.month - 1) - months
+    year, month = divmod(index, 12)
+    month += 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day.day, last_day))
+
+
+def _build_presets(today, date_from, date_to):
+    """Return (presets, custom_active) for the filter bar.
+
+    `presets` are the quick-select links with the active one flagged.
+    `custom_active` is True when a range is applied that matches no preset,
+    i.e. the user picked it with the custom date form.
+    """
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    # "Last N Months" is a rolling window ending today, not calendar months.
+    ranges = [
+        ("This Month", today.replace(day=1), today.replace(day=last_day)),
+        ("Last 3 Months", _months_ago(today, 3), today),
+        ("Last 6 Months", _months_ago(today, 6), today),
+    ]
+
+    presets = []
+    for label, start, end in ranges:
+        start_iso, end_iso = start.isoformat(), end.isoformat()
+        presets.append({
+            "label": label,
+            "url": url_for("profile", date_from=start_iso, date_to=end_iso),
+            "active": (date_from, date_to) == (start_iso, end_iso),
+        })
+    presets.append({
+        "label": "All Time",
+        "url": url_for("profile"),
+        "active": date_from is None,
+    })
+    custom_active = date_from is not None and not any(
+        p["active"] for p in presets
+    )
+    return presets, custom_active
 
 
 # ------------------------------------------------------------------ #
@@ -122,23 +199,32 @@ def logout():
 def profile():
     user_id = session["user_id"]
 
+    # --- date filter ---
+    date_from, date_to, filter_error = _parse_date_range(request.args)
+    if filter_error:
+        flash(filter_error, "error")
+    presets, custom_active = _build_presets(date.today(), date_from, date_to)
+    # --- end date filter ---
+
     # --- user card + summary stats (Subagent: summary) ---
     user = queries.get_user_by_id(user_id)
     initials = "".join(part[0].upper() for part in user["name"].split()[:2])
-    stats = queries.get_summary_stats(user_id)
+    stats = queries.get_summary_stats(user_id, date_from, date_to)
     total_spent = stats["total_spent"]
     transaction_count = stats["transaction_count"]
     top_category = stats["top_category"]
     # --- end user card + summary stats ---
 
     # --- transaction history (Subagent: transaction-history) ---
-    transactions = queries.get_recent_transactions(user_id)
+    transactions = queries.get_recent_transactions(
+        user_id, date_from=date_from, date_to=date_to
+    )
     # --- end transaction history ---
 
     # --- category breakdown (Subagent: category-breakdown) ---
     category_breakdown = [
         {"category": c["name"], "total": c["amount"], "percent": c["pct"]}
-        for c in queries.get_category_breakdown(user_id)
+        for c in queries.get_category_breakdown(user_id, date_from, date_to)
     ]
     # --- end category breakdown ---
 
@@ -151,6 +237,10 @@ def profile():
         top_category=top_category,
         transactions=transactions,
         category_breakdown=category_breakdown,
+        presets=presets,
+        date_from=date_from,
+        date_to=date_to,
+        custom_active=custom_active,
     )
 
 
