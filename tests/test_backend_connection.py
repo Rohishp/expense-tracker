@@ -140,7 +140,9 @@ def test_profile_shows_seed_user_data(client, db_path):
 
     user_id = _user_id_by_email(DEMO_EMAIL)
     dates_newest_first = [t["date"] for t in queries.get_recent_transactions(user_id)]
-    positions = [html.index(d) for d in dates_newest_first]
+    # Search inside the history table only: the date filter bar also contains dates.
+    table_html = html[html.index('class="history-table"'):]
+    positions = [table_html.index(d) for d in dates_newest_first]
     assert positions == sorted(positions)
 
 
