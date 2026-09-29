@@ -36,6 +36,10 @@
     font-size: 1.5rem;
 }
 
+.add-expense-btn {
+    margin-left: auto;
+}
+
 .profile-name {
     font-family: var(--font-display);
     font-size: 1.5rem;

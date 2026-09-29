@@ -1,5 +1,6 @@
 import calendar
 import functools
+import math
 import sqlite3
 from datetime import date, datetime
 
@@ -15,7 +16,7 @@ from flask import (
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import queries
-from database.db import get_db, init_db, seed_db
+from database.db import CATEGORIES, get_db, init_db, seed_db
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-key-change-in-production"
@@ -250,9 +251,72 @@ def analytics():
     return render_template("analytics.html")
 
 
-@app.route("/expenses/add")
+MAX_DESCRIPTION_LENGTH = 200
+MAX_AMOUNT = 10_000_000
+
+
+def _validate_expense_form(form):
+    """Return (clean_values, error). `error` is None when the form is valid.
+
+    The keys of `clean_values` match the keyword arguments of
+    `queries.create_expense`.
+    """
+    raw_amount = form.get("amount", "").strip()
+    category = form.get("category", "")
+    date_str = form.get("date", "").strip()
+    description = form.get("description", "").strip()
+
+    try:
+        amount = float(raw_amount)
+    except ValueError:
+        return None, "Amount must be a number."
+    # float() accepts "nan" and "inf", so reject non-finite values explicitly.
+    if not math.isfinite(amount) or amount <= 0:
+        return None, "Amount must be greater than zero."
+    if amount > MAX_AMOUNT:
+        return None, f"Amount must be at most {MAX_AMOUNT:,}."
+
+    if category not in CATEGORIES:
+        return None, "Please choose a valid category."
+
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return None, "Please enter a valid date."
+
+    if len(description) > MAX_DESCRIPTION_LENGTH:
+        return None, (
+            f"Description must be {MAX_DESCRIPTION_LENGTH} characters or fewer."
+        )
+
+    return {
+        "amount": round(amount, 2),
+        "category": category,
+        "expense_date": date_str,
+        "description": description or None,
+    }, None
+
+
+@app.route("/expenses/add", methods=["GET", "POST"])
+@login_required
 def add_expense():
-    return "Add expense — coming in Step 7"
+    form = {"date": date.today().isoformat()}
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_expense_form(form)
+        if not error:
+            queries.create_expense(session["user_id"], **clean)
+            return redirect(url_for("profile"))
+
+    return render_template(
+        "add_expense.html",
+        error=error,
+        categories=CATEGORIES,
+        form=form,
+        max_description_length=MAX_DESCRIPTION_LENGTH,
+    )
 
 
 @app.route("/expenses/<int:id>/edit")

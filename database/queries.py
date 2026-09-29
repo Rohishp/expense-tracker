@@ -21,6 +21,21 @@ def _date_clause(date_from, date_to):
     return "", ()
 
 
+def create_expense(user_id, amount, category, expense_date, description):
+    """Insert an expense for `user_id` and return its new id."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO expenses (user_id, amount, category, date, description) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, amount, category, expense_date, description),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+
 def get_user_by_id(user_id):
     """Return {"name", "email", "member_since"} for the user, or None.
 
