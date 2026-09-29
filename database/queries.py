@@ -10,6 +10,17 @@ from datetime import datetime
 from database.db import get_db
 
 
+def _date_clause(date_from, date_to):
+    """Return (sql_fragment, params) for an inclusive date range.
+
+    The range applies only when both bounds are given. The fragment is a
+    fixed string; the dates travel as bound parameters.
+    """
+    if date_from and date_to:
+        return " AND date BETWEEN ? AND ?", (date_from, date_to)
+    return "", ()
+
+
 def get_user_by_id(user_id):
     """Return {"name", "email", "member_since"} for the user, or None.
 
@@ -35,20 +46,22 @@ def get_user_by_id(user_id):
         conn.close()
 
 
-def get_summary_stats(user_id):
+def get_summary_stats(user_id, date_from=None, date_to=None):
     """Return {"total_spent", "transaction_count", "top_category"}.
 
     Zero-expense users get {"total_spent": 0, "transaction_count": 0,
     "top_category": "—"}. top_category is the category with the highest
-    summed amount (not count).
+    summed amount (not count). `date_from`/`date_to` (YYYY-MM-DD, inclusive)
+    limit the expenses considered when both are given.
 
     Subagent: summary
     """
+    date_sql, date_params = _date_clause(date_from, date_to)
     conn = get_db()
     try:
         rows = conn.execute(
-            "SELECT category, amount FROM expenses WHERE user_id = ?",
-            (user_id,),
+            "SELECT category, amount FROM expenses WHERE user_id = ?" + date_sql,
+            (user_id, *date_params),
         ).fetchall()
         if not rows:
             return {
@@ -75,18 +88,22 @@ def get_summary_stats(user_id):
         conn.close()
 
 
-def get_recent_transactions(user_id, limit=10):
+def get_recent_transactions(user_id, limit=10, date_from=None, date_to=None):
     """Return a list of {"date", "description", "category", "amount"},
     newest-first, limited to `limit` rows. Empty list if no expenses.
+    `date_from`/`date_to` (YYYY-MM-DD, inclusive) narrow the rows before
+    `limit` is applied, when both are given.
 
     Subagent: transaction-history
     """
+    date_sql, date_params = _date_clause(date_from, date_to)
     conn = get_db()
     try:
         rows = conn.execute(
             "SELECT date, description, category, amount FROM expenses "
-            "WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT ?",
-            (user_id, limit),
+            "WHERE user_id = ?" + date_sql +
+            " ORDER BY date DESC, id DESC LIMIT ?",
+            (user_id, *date_params, limit),
         ).fetchall()
         return [
             {
@@ -101,20 +118,22 @@ def get_recent_transactions(user_id, limit=10):
         conn.close()
 
 
-def get_category_breakdown(user_id):
+def get_category_breakdown(user_id, date_from=None, date_to=None):
     """Return a list of {"name", "amount", "pct"}, ordered by amount desc.
 
     `pct` values are ints that sum to exactly 100 (rounding remainder goes to
-    the largest category). Empty list if no expenses.
+    the largest category). Empty list if no expenses. `date_from`/`date_to`
+    (YYYY-MM-DD, inclusive) limit the expenses considered when both are given.
 
     Subagent: category-breakdown
     """
+    date_sql, date_params = _date_clause(date_from, date_to)
     conn = get_db()
     try:
         rows = conn.execute(
             "SELECT category, SUM(amount) AS total FROM expenses "
-            "WHERE user_id = ? GROUP BY category",
-            (user_id,),
+            "WHERE user_id = ?" + date_sql + " GROUP BY category",
+            (user_id, *date_params),
         ).fetchall()
         if not rows:
             return []
