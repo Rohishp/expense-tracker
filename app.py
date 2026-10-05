@@ -4,7 +4,7 @@ import math
 import os
 import secrets
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from flask import (
     Flask,
@@ -19,7 +19,13 @@ from flask import (
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import queries
-from database.db import CATEGORIES, get_db, init_db, seed_db
+from database.db import (
+    CATEGORIES,
+    IMPORTANCE_LEVELS,
+    get_db,
+    init_db,
+    seed_db,
+)
 
 app = Flask(__name__)
 # Set SECRET_KEY in the environment for any real deployment; the fallback is
@@ -289,23 +295,46 @@ MAX_DESCRIPTION_LENGTH = 200
 MAX_AMOUNT = 10_000_000
 MAX_NAME_LENGTH = 60
 MAX_OBLIGATIONS = 100
+MAX_GOALS = 100
+MAX_DEADLINE_YEARS = 50
 
 
-def _validate_amount(raw):
-    """Return (amount, error) for a monetary form value."""
+def _validate_amount(raw, allow_zero=False):
+    """Return (amount, error) for a monetary form value.
+
+    Zero is rejected unless `allow_zero` is set (used for a Saved Amount).
+    """
+    too_small = (
+        "Amount must not be negative."
+        if allow_zero
+        else "Amount must be greater than zero."
+    )
     try:
         amount = float(raw.strip())
     except ValueError:
         return None, "Amount must be a number."
     # float() accepts "nan" and "inf", so reject non-finite values explicitly.
-    if not math.isfinite(amount) or amount <= 0:
-        return None, "Amount must be greater than zero."
+    if not math.isfinite(amount):
+        return None, "Amount must be a number."
+    if amount < 0 or (amount == 0 and not allow_zero):
+        return None, too_small
     if amount > MAX_AMOUNT:
         return None, f"Amount must be at most {MAX_AMOUNT:,}."
     amount = round(amount, 2)
-    if amount <= 0:
-        return None, "Amount must be greater than zero."
+    # Only a tiny positive value (e.g. 0.001) can round down to zero here.
+    if amount == 0 and not allow_zero:
+        return None, too_small
     return amount, None
+
+
+def _validate_name(raw):
+    """Return (name, error) for a required, length-limited name."""
+    name = raw.strip()
+    if not name:
+        return None, "Name is required."
+    if len(name) > MAX_NAME_LENGTH:
+        return None, f"Name must be {MAX_NAME_LENGTH} characters or fewer."
+    return name, None
 
 
 def _validate_expense_form(form):
@@ -444,11 +473,9 @@ def _validate_income_form(form):
 
 def _validate_obligation_form(form):
     """Return (clean_values, error); keys match `queries.create_obligation`."""
-    name = form.get("name", "").strip()
-    if not name:
-        return None, "Name is required."
-    if len(name) > MAX_NAME_LENGTH:
-        return None, f"Name must be {MAX_NAME_LENGTH} characters or fewer."
+    name, error = _validate_name(form.get("name", ""))
+    if error:
+        return None, error
     amount, error = _validate_amount(form.get("amount", ""))
     if error:
         return None, error
@@ -560,6 +587,148 @@ def delete_obligation(id):
         return redirect(url_for("obligations"))
 
     return render_template("delete_obligation.html", obligation=obligation)
+
+
+# ------------------------------------------------------------------ #
+# Goals                                                               #
+# ------------------------------------------------------------------ #
+
+
+def _validate_deadline(raw):
+    """Return (deadline, error); a valid YYYY-MM-DD after today, within range."""
+    deadline = raw.strip()
+    try:
+        deadline_date = datetime.strptime(deadline, "%Y-%m-%d").date()
+    except ValueError:
+        return None, "Please enter a valid Deadline."
+    today = date.today()
+    if deadline_date <= today:
+        return None, "Deadline must be after today."
+    if deadline_date > today + timedelta(days=365 * MAX_DEADLINE_YEARS):
+        return None, f"Deadline must be within {MAX_DEADLINE_YEARS} years."
+    return deadline, None
+
+
+def _validate_goal_form(form):
+    """Return (clean_values, error); keys match `queries.create_goal`."""
+    name, error = _validate_name(form.get("name", ""))
+    if error:
+        return None, error
+
+    target, error = _validate_amount(form.get("target_amount", ""))
+    if error:
+        return None, f"Target: {error}"
+
+    raw_saved = form.get("saved_amount", "").strip()
+    if raw_saved:
+        saved, error = _validate_amount(raw_saved, allow_zero=True)
+        if error:
+            return None, f"Saved Amount: {error}"
+        if saved > target:
+            return None, "Saved Amount cannot be more than the target."
+    else:
+        saved = 0.0
+
+    deadline, error = _validate_deadline(form.get("deadline", ""))
+    if error:
+        return None, error
+
+    importance = form.get("importance", "")
+    if importance not in IMPORTANCE_LEVELS:
+        return None, "Please choose a valid Importance."
+
+    return {
+        "name": name,
+        "target_amount": target,
+        "saved_amount": saved,
+        "deadline": deadline,
+        "importance": importance,
+    }, None
+
+
+def _render_goal_form(form, error=None, goal_id=None):
+    # `form` is a dict (add, or edit prefill) or request.form; the template
+    # only calls .get() on it, so either works.
+    return render_template(
+        "goal_form.html",
+        error=error,
+        form=form,
+        goal_id=goal_id,
+        editing=goal_id is not None,
+        importance_levels=IMPORTANCE_LEVELS,
+        max_name_length=MAX_NAME_LENGTH,
+        min_deadline=(date.today() + timedelta(days=1)).isoformat(),
+    )
+
+
+@app.route("/goals")
+@login_required
+def goals():
+    return render_template(
+        "goals.html", goals=queries.list_goals(session["user_id"])
+    )
+
+
+@app.route("/goals/add", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def add_goal():
+    form = {"importance": "Should-have"}
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_goal_form(form)
+        if not error and queries.count_goals(session["user_id"]) >= MAX_GOALS:
+            error = f"You can have at most {MAX_GOALS} Goals."
+        if not error:
+            queries.create_goal(session["user_id"], **clean)
+            flash("Goal added.", "success")
+            return redirect(url_for("goals"))
+
+    return _render_goal_form(form, error)
+
+
+@app.route("/goals/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def edit_goal(id):
+    # Ownership is part of the query, so missing and foreign ids both 404.
+    goal = queries.get_goal(id, session["user_id"])
+    if goal is None:
+        abort(404)
+
+    form = goal
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_goal_form(form)
+        if not error:
+            # False means the row vanished since the read above.
+            if not queries.update_goal(id, session["user_id"], **clean):
+                abort(404)
+            flash("Goal updated.", "success")
+            return redirect(url_for("goals"))
+
+    return _render_goal_form(form, error, goal_id=id)
+
+
+@app.route("/goals/<int:id>/delete", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def delete_goal(id):
+    goal = queries.get_goal(id, session["user_id"])
+    if goal is None:
+        abort(404)
+
+    if request.method == "POST":
+        if not queries.delete_goal(id, session["user_id"]):
+            abort(404)
+        flash("Goal deleted.", "success")
+        return redirect(url_for("goals"))
+
+    return render_template("delete_goal.html", goal=goal)
 
 
 if __name__ == "__main__":

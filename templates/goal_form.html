@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Edit" if editing else "Add" }} Goal — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="expense-form-section">
+    <div class="expense-form-container">
+
+        <div class="expense-form-header">
+            <h1 class="expense-form-title">{{ "Edit Goal" if editing else "Add Goal" }}</h1>
+            <p class="expense-form-subtitle">{{ "Update this Goal" if editing else "Add something you want to pay for by a chosen Deadline" }}</p>
+        </div>
+
+        <div class="expense-form-card">
+            {% if error %}
+            <div class="auth-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('edit_goal', id=goal_id) if editing else url_for('add_goal') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" class="form-input"
+                           maxlength="{{ max_name_length }}" placeholder="e.g. Laptop"
+                           value="{{ form.get('name', '') }}" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="target_amount">Target</label>
+                    <input type="number" id="target_amount" name="target_amount" class="form-input"
+                           step="0.01" min="0.01" placeholder="0.00"
+                           value="{{ form.get('target_amount', '') }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="saved_amount">Saved Amount</label>
+                    <input type="number" id="saved_amount" name="saved_amount" class="form-input"
+                           step="0.01" min="0" placeholder="0.00"
+                           value="{{ form.get('saved_amount', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="deadline">Deadline</label>
+                    <input type="date" id="deadline" name="deadline" class="form-input"
+                           min="{{ min_deadline }}"
+                           value="{{ form.get('deadline', '') }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="importance">Importance</label>
+                    <select id="importance" name="importance" class="form-input" required>
+                        {% for level in importance_levels %}
+                        <option value="{{ level }}"{% if form.get('importance') == level %} selected{% endif %}>{{ level }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="expense-form-actions">
+                    <button type="submit" class="btn-submit">{{ "Save changes" if editing else "Add Goal" }}</button>
+                    <a href="{{ url_for('goals') }}" class="btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

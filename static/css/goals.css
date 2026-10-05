@@ -1,0 +1,29 @@
+/* ------------------------------------------------------------------ */
+/* Goals (layered on obligations.css for the table and page layout)    */
+/* ------------------------------------------------------------------ */
+
+/* The importance-* classes come from `importance|lower` in goals.html, so
+   they must match IMPORTANCE_LEVELS in database/db.py. */
+
+.goals-table .importance-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.importance-must-have {
+    color: var(--danger);
+    background: var(--danger-light);
+}
+
+.importance-should-have {
+    color: var(--accent-2);
+    background: var(--accent-2-light);
+}
+
+.importance-nice-to-have {
+    color: var(--accent);
+    background: var(--accent-light);
+}
