@@ -224,3 +224,112 @@ def get_category_breakdown(user_id, date_from=None, date_to=None):
         return categories
     finally:
         conn.close()
+
+
+def get_income(user_id):
+    """Return the user's monthly Income as a float, or None if not set."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT monthly_amount FROM incomes WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return None if row is None else float(row["monthly_amount"])
+    finally:
+        conn.close()
+
+
+def set_income(user_id, amount):
+    """Create or replace the user's monthly Income."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO incomes (user_id, monthly_amount) VALUES (?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET "
+            "monthly_amount = excluded.monthly_amount, "
+            "updated_at = datetime('now')",
+            (user_id, amount),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_obligations(user_id):
+    """Return the user's Obligations as dicts, oldest first."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, name, amount FROM obligations "
+            "WHERE user_id = ? ORDER BY created_at, id",
+            (user_id,),
+        ).fetchall()
+        return [
+            {"id": r["id"], "name": r["name"], "amount": float(r["amount"])}
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def get_obligation(obligation_id, user_id):
+    """Return the Obligation as a dict if it belongs to `user_id`, else None."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, name, amount FROM obligations "
+            "WHERE id = ? AND user_id = ?",
+            (obligation_id, user_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "amount": float(row["amount"]),
+        }
+    finally:
+        conn.close()
+
+
+def create_obligation(user_id, name, amount):
+    """Insert an Obligation for `user_id` and return its new id."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO obligations (user_id, name, amount) VALUES (?, ?, ?)",
+            (user_id, name, amount),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def update_obligation(obligation_id, user_id, name, amount):
+    """Update an Obligation owned by `user_id`. Return True if a row changed."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "UPDATE obligations SET name = ?, amount = ? "
+            "WHERE id = ? AND user_id = ?",
+            (name, amount, obligation_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_obligation(obligation_id, user_id):
+    """Delete an Obligation owned by `user_id`. Return True if a row was deleted."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM obligations WHERE id = ? AND user_id = ?",
+            (obligation_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()

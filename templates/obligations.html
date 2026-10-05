@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Obligations — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/obligations.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="obligations-section">
+    <div class="obligations-container">
+
+        <h1 class="obligations-title">Income and Obligations</h1>
+
+        <div class="income-card">
+            <div>
+                <span class="income-label">Monthly Income</span>
+                {% if income is not none %}
+                <span class="income-value">€{{ income|eur }}</span>
+                {% else %}
+                <span class="income-empty">Not set yet. Set your Income to get started.</span>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('income') }}" class="btn-ghost">{{ "Change Income" if income is not none else "Set Income" }}</a>
+        </div>
+
+        <div class="obligations-header">
+            <h2 class="obligations-subtitle">Obligations</h2>
+            <a href="{{ url_for('add_obligation') }}" class="btn-primary">Add Obligation</a>
+        </div>
+
+        {% if obligations %}
+        <table class="obligations-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th class="col-amount">Monthly amount</th>
+                    <th class="col-actions"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in obligations %}
+                <tr>
+                    <td>{{ o.name }}</td>
+                    <td class="col-amount">€{{ o.amount|eur }}</td>
+                    <td class="col-actions">
+                        <a href="{{ url_for('edit_obligation', id=o.id) }}">Edit</a>
+                        <a href="{{ url_for('delete_obligation', id=o.id) }}" class="link-danger">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th>Total</th>
+                    <th class="col-amount">€{{ total|eur }}</th>
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
+        <p class="obligations-empty">No Obligations yet. Add recurring essential costs such as rent or groceries.</p>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}
