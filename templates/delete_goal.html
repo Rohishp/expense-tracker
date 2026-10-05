@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Goal — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/delete_expense.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="expense-form-section">
+    <div class="expense-form-container">
+
+        <div class="expense-form-header">
+            <h1 class="expense-form-title">Delete Goal</h1>
+            <p class="expense-form-subtitle">This cannot be undone. Are you sure you want to delete this Goal?</p>
+        </div>
+
+        <div class="expense-form-card">
+            <dl class="expense-summary">
+                <div class="expense-summary-row">
+                    <dt>Name</dt>
+                    <dd>{{ goal.name }}</dd>
+                </div>
+                <div class="expense-summary-row">
+                    <dt>Target</dt>
+                    <dd>€{{ goal.target_amount|eur }}</dd>
+                </div>
+                <div class="expense-summary-row">
+                    <dt>Saved Amount</dt>
+                    <dd>€{{ goal.saved_amount|eur }}</dd>
+                </div>
+                <div class="expense-summary-row">
+                    <dt>Deadline</dt>
+                    <dd>{{ goal.deadline }}</dd>
+                </div>
+                <div class="expense-summary-row">
+                    <dt>Importance</dt>
+                    <dd>{{ goal.importance }}</dd>
+                </div>
+            </dl>
+
+            <form method="POST" action="{{ url_for('delete_goal', id=goal.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="expense-form-actions">
+                    <button type="submit" class="btn-submit btn-danger">Delete Goal</button>
+                    <a href="{{ url_for('goals') }}" class="btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

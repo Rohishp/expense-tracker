@@ -333,3 +333,114 @@ def delete_obligation(obligation_id, user_id):
         return cursor.rowcount > 0
     finally:
         conn.close()
+
+
+_GOAL_COLUMNS = "id, name, target_amount, saved_amount, deadline, importance"
+
+
+def _goal_to_dict(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "target_amount": float(row["target_amount"]),
+        "saved_amount": float(row["saved_amount"]),
+        "deadline": row["deadline"],
+        "importance": row["importance"],
+    }
+
+
+def list_goals(user_id):
+    """Return the Goals of `user_id` as dicts, earliest Deadline first."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            f"SELECT {_GOAL_COLUMNS} FROM goals "
+            "WHERE user_id = ? ORDER BY deadline, id",
+            (user_id,),
+        ).fetchall()
+        return [_goal_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def count_goals(user_id):
+    """Return how many Goals `user_id` has."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS count FROM goals WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return row["count"]
+    finally:
+        conn.close()
+
+
+def get_goal(goal_id, user_id):
+    """Return the Goal as a dict if it belongs to `user_id`, else None."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            f"SELECT {_GOAL_COLUMNS} FROM goals WHERE id = ? AND user_id = ?",
+            (goal_id, user_id),
+        ).fetchone()
+        return None if row is None else _goal_to_dict(row)
+    finally:
+        conn.close()
+
+
+def create_goal(
+    user_id, name, target_amount, saved_amount, deadline, importance
+):
+    """Insert a Goal for `user_id` and return its new id."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO goals "
+            "(user_id, name, target_amount, saved_amount, deadline, importance) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, name, target_amount, saved_amount, deadline, importance),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def update_goal(
+    goal_id, user_id, name, target_amount, saved_amount, deadline, importance
+):
+    """Update a Goal owned by `user_id`. Return True if a row changed."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "UPDATE goals SET name = ?, target_amount = ?, saved_amount = ?, "
+            "deadline = ?, importance = ? WHERE id = ? AND user_id = ?",
+            (
+                name,
+                target_amount,
+                saved_amount,
+                deadline,
+                importance,
+                goal_id,
+                user_id,
+            ),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_goal(goal_id, user_id):
+    """Delete a Goal owned by `user_id`. Return True if a row was deleted."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM goals WHERE id = ? AND user_id = ?",
+            (goal_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()

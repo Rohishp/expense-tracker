@@ -24,6 +24,10 @@
                     <a href="{{ url_for('obligations') }}"
                        class="nav-link{% if obligations_nav_active %} active{% endif %}"
                        {% if obligations_nav_active %}aria-current="page"{% endif %}>Obligations</a>
+                    {% set goals_nav_active = request.endpoint in ('goals', 'add_goal', 'edit_goal', 'delete_goal') %}
+                    <a href="{{ url_for('goals') }}"
+                       class="nav-link{% if goals_nav_active %} active{% endif %}"
+                       {% if goals_nav_active %}aria-current="page"{% endif %}>Goals</a>
                     <a href="{{ url_for('analytics') }}"
                        class="nav-link{% if request.endpoint == 'analytics' %} active{% endif %}"
                        {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}>Analytics</a>

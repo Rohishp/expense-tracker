@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Goals — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/obligations.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/goals.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="obligations-section">
+    <div class="obligations-container">
+
+        <div class="obligations-header">
+            <h1 class="obligations-title">Goals</h1>
+            <a href="{{ url_for('add_goal') }}" class="btn-primary">Add Goal</a>
+        </div>
+
+        {% if goals %}
+        <table class="obligations-table goals-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Importance</th>
+                    <th>Deadline</th>
+                    <th class="col-amount">Saved Amount</th>
+                    <th class="col-amount">Target</th>
+                    <th class="col-actions"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in goals %}
+                <tr>
+                    <td>{{ g.name }}</td>
+                    <td><span class="importance-badge importance-{{ g.importance|lower }}">{{ g.importance }}</span></td>
+                    <td>{{ g.deadline }}</td>
+                    <td class="col-amount">€{{ g.saved_amount|eur }}</td>
+                    <td class="col-amount">€{{ g.target_amount|eur }}</td>
+                    <td class="col-actions">
+                        <a href="{{ url_for('edit_goal', id=g.id) }}">Edit</a>
+                        <a href="{{ url_for('delete_goal', id=g.id) }}" class="link-danger">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="obligations-empty">No Goals yet. Add something you want to pay for by a chosen Deadline.</p>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}

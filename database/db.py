@@ -19,6 +19,8 @@ CATEGORIES = [
     "Entertainment", "Shopping", "Other",
 ]
 
+IMPORTANCE_LEVELS = ["Must-have", "Should-have", "Nice-to-have"]
+
 
 def get_db():
     """Open a new SQLite connection with row access and FK enforcement.
@@ -78,6 +80,21 @@ def init_db():
                 user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 amount REAL NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                target_amount REAL NOT NULL,
+                saved_amount REAL NOT NULL DEFAULT 0,
+                deadline TEXT NOT NULL,
+                importance TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now')),
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
