@@ -18,6 +18,7 @@ from flask import (
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import planner
 from database import queries
 from database.db import (
     CATEGORIES,
@@ -729,6 +730,27 @@ def delete_goal(id):
         return redirect(url_for("goals"))
 
     return render_template("delete_goal.html", goal=goal)
+
+
+# ------------------------------------------------------------------ #
+# Plan                                                                #
+# ------------------------------------------------------------------ #
+
+
+@app.route("/plan")
+@login_required
+def plan():
+    user_id = session["user_id"]
+    income = queries.get_income(user_id)
+    result = None
+    if income is not None:
+        result = planner.plan(
+            income,
+            queries.list_obligations(user_id),
+            queries.list_goals(user_id),
+            date.today(),
+        )
+    return render_template("plan.html", plan=result)
 
 
 if __name__ == "__main__":

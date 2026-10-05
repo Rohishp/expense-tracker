@@ -1,0 +1,38 @@
+/* ------------------------------------------------------------------ */
+/* Plan (layered on obligations.css and goals.css)                     */
+/* ------------------------------------------------------------------ */
+
+.plan-summary {
+    flex-wrap: wrap;
+}
+
+.plan-surplus {
+    margin-top: 2rem;
+    margin-bottom: 0;
+}
+
+.plan-figure {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--accent);
+}
+
+.plan-banner {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    color: var(--danger);
+    background: var(--danger-light);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-md);
+}
+
+.plan-warning {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.75rem;
+    color: var(--danger);
+    background: var(--danger-light);
+    border-left: 4px solid var(--danger);
+    border-radius: var(--radius-sm);
+}
