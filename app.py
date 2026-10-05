@@ -61,7 +61,9 @@ def csrf_protect(view_func):
         if request.method == "POST" and app.config["CSRF_ENABLED"]:
             sent = request.form.get("csrf_token", "")
             expected = session.get("csrf_token", "")
-            if not expected or not secrets.compare_digest(sent, expected):
+            if not expected or not secrets.compare_digest(
+                sent.encode(), expected.encode()
+            ):
                 abort(400)
         return view_func(*args, **kwargs)
     return wrapper
@@ -285,6 +287,25 @@ def analytics():
 
 MAX_DESCRIPTION_LENGTH = 200
 MAX_AMOUNT = 10_000_000
+MAX_NAME_LENGTH = 60
+MAX_OBLIGATIONS = 100
+
+
+def _validate_amount(raw):
+    """Return (amount, error) for a monetary form value."""
+    try:
+        amount = float(raw.strip())
+    except ValueError:
+        return None, "Amount must be a number."
+    # float() accepts "nan" and "inf", so reject non-finite values explicitly.
+    if not math.isfinite(amount) or amount <= 0:
+        return None, "Amount must be greater than zero."
+    if amount > MAX_AMOUNT:
+        return None, f"Amount must be at most {MAX_AMOUNT:,}."
+    amount = round(amount, 2)
+    if amount <= 0:
+        return None, "Amount must be greater than zero."
+    return amount, None
 
 
 def _validate_expense_form(form):
@@ -298,15 +319,9 @@ def _validate_expense_form(form):
     date_str = form.get("date", "").strip()
     description = form.get("description", "").strip()
 
-    try:
-        amount = float(raw_amount)
-    except ValueError:
-        return None, "Amount must be a number."
-    # float() accepts "nan" and "inf", so reject non-finite values explicitly.
-    if not math.isfinite(amount) or amount <= 0:
-        return None, "Amount must be greater than zero."
-    if amount > MAX_AMOUNT:
-        return None, f"Amount must be at most {MAX_AMOUNT:,}."
+    amount, error = _validate_amount(raw_amount)
+    if error:
+        return None, error
 
     if category not in CATEGORIES:
         return None, "Please choose a valid category."
@@ -410,5 +425,142 @@ def delete_expense(id):
     return render_template("delete_expense.html", expense=expense)
 
 
+# ------------------------------------------------------------------ #
+# Income and Obligations                                              #
+# ------------------------------------------------------------------ #
+
+@app.template_filter("eur")
+def eur(value):
+    return f"{value:,.2f}"
+
+
+def _validate_income_form(form):
+    """Return (clean_values, error); keys match `queries.set_income`."""
+    amount, error = _validate_amount(form.get("amount", ""))
+    if error:
+        return None, error
+    return {"amount": amount}, None
+
+
+def _validate_obligation_form(form):
+    """Return (clean_values, error); keys match `queries.create_obligation`."""
+    name = form.get("name", "").strip()
+    if not name:
+        return None, "Name is required."
+    if len(name) > MAX_NAME_LENGTH:
+        return None, f"Name must be {MAX_NAME_LENGTH} characters or fewer."
+    amount, error = _validate_amount(form.get("amount", ""))
+    if error:
+        return None, error
+    return {"name": name, "amount": amount}, None
+
+
+def _render_obligation_form(form, error=None, obligation_id=None):
+    return render_template(
+        "obligation_form.html",
+        error=error,
+        form=form,
+        obligation_id=obligation_id,
+        max_name_length=MAX_NAME_LENGTH,
+    )
+
+
+@app.route("/obligations")
+@login_required
+def obligations():
+    user_id = session["user_id"]
+    items = queries.list_obligations(user_id)
+    return render_template(
+        "obligations.html",
+        income=queries.get_income(user_id),
+        obligations=items,
+        total=sum(o["amount"] for o in items),
+    )
+
+
+@app.route("/income", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def income():
+    user_id = session["user_id"]
+    current = queries.get_income(user_id)
+    form = {"amount": current if current is not None else ""}
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_income_form(form)
+        if not error:
+            queries.set_income(user_id, clean["amount"])
+            flash("Income saved.", "success")
+            return redirect(url_for("obligations"))
+
+    return render_template("income.html", error=error, form=form)
+
+
+@app.route("/obligations/add", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def add_obligation():
+    form = {}
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_obligation_form(form)
+        if not error and (
+            len(queries.list_obligations(session["user_id"])) >= MAX_OBLIGATIONS
+        ):
+            error = f"You can have at most {MAX_OBLIGATIONS} obligations."
+        if not error:
+            queries.create_obligation(session["user_id"], **clean)
+            flash("Obligation added.", "success")
+            return redirect(url_for("obligations"))
+
+    return _render_obligation_form(form, error)
+
+
+@app.route("/obligations/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def edit_obligation(id):
+    # Ownership is part of the query, so missing and foreign ids both 404.
+    obligation = queries.get_obligation(id, session["user_id"])
+    if obligation is None:
+        abort(404)
+
+    form = obligation
+    error = None
+
+    if request.method == "POST":
+        form = request.form
+        clean, error = _validate_obligation_form(form)
+        if not error:
+            # False means the row vanished since the read above.
+            if not queries.update_obligation(id, session["user_id"], **clean):
+                abort(404)
+            flash("Obligation updated.", "success")
+            return redirect(url_for("obligations"))
+
+    return _render_obligation_form(form, error, obligation_id=id)
+
+
+@app.route("/obligations/<int:id>/delete", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def delete_obligation(id):
+    obligation = queries.get_obligation(id, session["user_id"])
+    if obligation is None:
+        abort(404)
+
+    if request.method == "POST":
+        if not queries.delete_obligation(id, session["user_id"]):
+            abort(404)
+        flash("Obligation deleted.", "success")
+        return redirect(url_for("obligations"))
+
+    return render_template("delete_obligation.html", obligation=obligation)
+
+
 if __name__ == "__main__":
-    app.run(debug=os.environ.get("FLASK_DEBUG", "1") == "1", port=5001)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1", port=5001)

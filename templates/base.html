@@ -20,6 +20,10 @@
             </a>
             <div class="nav-links">
                 {% if session.user_id %}
+                    {% set obligations_nav_active = request.endpoint in ('obligations', 'income', 'add_obligation', 'edit_obligation', 'delete_obligation') %}
+                    <a href="{{ url_for('obligations') }}"
+                       class="nav-link{% if obligations_nav_active %} active{% endif %}"
+                       {% if obligations_nav_active %}aria-current="page"{% endif %}>Obligations</a>
                     <a href="{{ url_for('analytics') }}"
                        class="nav-link{% if request.endpoint == 'analytics' %} active{% endif %}"
                        {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}>Analytics</a>

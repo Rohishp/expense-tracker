@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Income — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="expense-form-section">
+    <div class="expense-form-container">
+
+        <div class="expense-form-header">
+            <h1 class="expense-form-title">Monthly Income</h1>
+            <p class="expense-form-subtitle">The stable amount you receive each month</p>
+        </div>
+
+        <div class="expense-form-card">
+            {% if error %}
+            <div class="auth-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('income') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="amount">Monthly amount</label>
+                    <input type="number" id="amount" name="amount" class="form-input"
+                           step="0.01" min="0.01" placeholder="0.00"
+                           value="{{ form.get('amount', '') }}" required autofocus>
+                </div>
+                <div class="expense-form-actions">
+                    <button type="submit" class="btn-submit">Save Income</button>
+                    <a href="{{ url_for('obligations') }}" class="btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</section>
+{% endblock %}
