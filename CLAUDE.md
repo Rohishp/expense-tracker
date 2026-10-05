@@ -1,7 +1,10 @@
-# 
+# Spendly
+
 ## Project overview
 
-"Spendly" is a Flask-based expense tracker built incrementally as a step-by-step learning exercise. Many routes and the entire database layer are intentionally left as stubs, marked with comments like `# Students will write this file in Step 1` or `return "Logout — coming in Step 3"`. When asked to implement one of these, treat the stub's comment as the spec for that step rather than removing the surrounding scaffolding style.
+"Spendly" is a Flask-based personal expense tracker built incrementally, one numbered step at a time. Each step has a spec in `.claude/specs/` (`01-database-setup.md` … `09-delete-expense.md`); treat the spec as the source of truth for that step. Steps 1–9 are implemented: database setup, registration, login/logout, profile page wired to real data with a date filter, and add/edit/delete expense.
+
+The next feature is a **savings plan** (Income, Obligations, Goals, and a computed Plan), split into steps 10–13. Domain terms are defined in `GLOSSARY.md`; use those words exactly. Decisions live in `docs/adr/`.
 
 ## Commands
 
@@ -12,13 +15,23 @@ pytest                            # run tests
 pytest path/to/test_file.py::test_name   # run a single test
 ```
 
-There is no lint/format tooling configured in this repo.
+There is no linter configured; a PostToolUse hook runs `black` on any `.py` file Claude writes or edits.
+
+Slash commands in `.claude/commands/`: `/create-spec`, `/test-feature`, `/code-review-feature`, `/ship-feature`, `/seed-user`, `/seed-expense`. Subagents in `.claude/agents/`: `spendly-test-writer`, `spendly-test-runner`, `spendly-security-reviewer`, `spendly-quality-reviewer`.
 
 ## Architecture
 
-- **`app.py`** — single-file Flask app; all routes are currently defined directly on `app` (no blueprints). Fully implemented routes render templates only (`/`, `/register`, `/login`, `/terms`, `/privacy`); a second block of routes (`/logout`, `/profile`, `/expenses/add`, `/expenses/<id>/edit`, `/expenses/<id>/delete`) are placeholders returning plain strings, pending auth and expense-CRUD implementation.
-- **`database/db.py`** — not yet implemented. Intended to hold `get_db()` (SQLite connection with `row_factory` and foreign keys enabled), `init_db()` (creates tables with `CREATE TABLE IF NOT EXISTS`), and `seed_db()` (sample data for development). No ORM is used — raw `sqlite3` is the expected approach.
-- **`templates/`** — Jinja2 templates extending `base.html`, which defines the shared navbar/footer and exposes `{% block title %}`, `{% block head %}`, `{% block content %}`, `{% block scripts %}`. Page-specific styles live in a dedicated CSS file per page (e.g. `landing.css`) loaded via a page's `{% block head %}`, layered on top of the shared `static/css/style.css`.
-- **`static/css/style.css`** — defines the shared design tokens (CSS custom properties for color, font, radius, max-width) that other stylesheets build on; keep new styles consistent with these variables rather than hardcoding values.
-- **`static/js/main.js`** — currently empty; shared/global JS goes here, while page-specific JS (e.g. modal behavior on the landing page) is inlined in that page's `{% block scripts %}`.
-- The SQLite database file (`expense_tracker.db`) and `venv/` are gitignored and not present until `init_db()` is implemented and run.
+- **`app.py`** — single-file Flask app, no blueprints. Routes: `/`, `/register`, `/login`, `/logout`, `/terms`, `/privacy`, `/profile` (summary stats, recent transactions, category breakdown, date-range filter), `/analytics` (template only), `/expenses/add`, `/expenses/<id>/edit`, `/expenses/<id>/delete`. Protected views use `@login_required` (checks `session["user_id"]`). POST views are wrapped in `@csrf_protect`; forms include `csrf_token()`. Tests turn CSRF off with `app.config["CSRF_ENABLED"] = False`.
+- **`database/db.py`** — `get_db()` (SQLite connection, `row_factory = sqlite3.Row`, `PRAGMA foreign_keys = ON` reissued per connection), `init_db()` (`CREATE TABLE IF NOT EXISTS` for `users` and `expenses`), `seed_db()` (one demo user, 8 sample expenses), and the `CATEGORIES` list. No ORM — raw `sqlite3`, parameterised queries only.
+- **`database/queries.py`** — all SQL for expenses and the profile page (`create_expense`, `get_expense`, `update_expense`, `delete_expense`, `get_user_by_id`, `get_summary_stats`, `get_recent_transactions`, `get_category_breakdown`). Every expense query filters by `user_id` so users only touch their own rows.
+- **`templates/`** — Jinja2 templates extending `base.html` (shared navbar/footer; blocks `title`, `head`, `content`, `scripts`). Each page has its own CSS in `static/css/` loaded via `{% block head %}`, layered on the shared `style.css`.
+- **`static/css/style.css`** — shared design tokens (CSS custom properties). Use the variables; never hardcode hex values.
+- **`static/js/main.js`** — shared JS (currently empty); page-specific JS is inlined in that page's `{% block scripts %}`.
+- **`tests/`** — pytest, one file per step (`test_07-add-expense.py` …) plus `conftest.py`. Amounts are shown in € with no currency stored.
+- The SQLite file `expense_tracker.db` and `venv/` are gitignored. Deployment is via `Procfile` (gunicorn).
+
+## Conventions
+
+- Missing or foreign records return 404 (never reveal that an id exists); data-changing actions are POST with Post/Redirect/Get.
+- All templates extend `base.html`; no inline styles; use `url_for` for links and form actions.
+- Commits and PRs carry no Claude attribution (`attribution` is blank in `.claude/settings.json`).
