@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Plan — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/obligations.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/goals.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/plan.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="obligations-section">
+    <div class="obligations-container">
+
+        <h1 class="obligations-title">Plan</h1>
+
+        {% if plan is none %}
+        <p class="obligations-empty">Set your Income to see your Plan. <a href="{{ url_for('income') }}">Set Income</a></p>
+        {% else %}
+
+        <div class="income-card plan-summary">
+            <div>
+                <span class="income-label">Income</span>
+                <span class="plan-figure">€{{ plan.income|eur }}</span>
+            </div>
+            <div>
+                <span class="income-label">Obligations</span>
+                <span class="plan-figure">€{{ plan.obligations_total|eur }}</span>
+            </div>
+            <div>
+                <span class="income-label">Available</span>
+                <span class="plan-figure">€{{ plan.available|eur }}</span>
+            </div>
+        </div>
+
+        {% if plan.overcommitted %}
+        <div class="plan-banner">Your Obligations are more than your Income, so no Goal can be funded.</div>
+        {% endif %}
+
+        {% if plan["items"] %}
+        <table class="obligations-table goals-table plan-table">
+            <thead>
+                <tr>
+                    <th>Goal</th>
+                    <th>Importance</th>
+                    <th>Deadline</th>
+                    <th class="col-amount">Installment</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in plan["items"] %}
+                <tr>
+                    <td>{{ g.name }}</td>
+                    <td><span class="importance-badge importance-{{ g.importance|lower }}">{{ g.importance }}</span></td>
+                    <td>{{ g.deadline }}</td>
+                    <td class="col-amount">€{{ g.installment|eur }}</td>
+                    <td>
+                        {% if g.status == 'funded' %}
+                        Funded
+                        {% elif g.status == 'fully_funded' %}
+                        Fully funded
+                        {% else %}
+                        <div class="plan-warning">
+                            <strong>Unreachable Goal</strong>
+                            {% if g.earliest_date %}
+                            <span>Earliest date it could be met: {{ g.earliest_date }}</span>
+                            {% else %}
+                            <span>Not reachable with your current Income</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="obligations-empty">No Goals yet. <a href="{{ url_for('add_goal') }}">Add a Goal</a> to see how your Income is split.</p>
+        {% endif %}
+
+        <div class="income-card plan-surplus">
+            <span class="income-label">Surplus</span>
+            <span class="plan-figure">€{{ plan.surplus|eur }}</span>
+        </div>
+
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}

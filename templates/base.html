@@ -28,6 +28,9 @@
                     <a href="{{ url_for('goals') }}"
                        class="nav-link{% if goals_nav_active %} active{% endif %}"
                        {% if goals_nav_active %}aria-current="page"{% endif %}>Goals</a>
+                    <a href="{{ url_for('plan') }}"
+                       class="nav-link{% if request.endpoint == 'plan' %} active{% endif %}"
+                       {% if request.endpoint == 'plan' %}aria-current="page"{% endif %}>Plan</a>
                     <a href="{{ url_for('analytics') }}"
                        class="nav-link{% if request.endpoint == 'analytics' %} active{% endif %}"
                        {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}>Analytics</a>
