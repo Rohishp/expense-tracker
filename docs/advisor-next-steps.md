@@ -1,117 +1,121 @@
-# Advisor agent: problems found and next steps
+# Advisor agent: results and next steps
 
-Hand-off for the next session. Written 2026-10-16, after the first real
-baseline of the rebuilt advisor eval (`advisor/evals.py`, commit `351ce4b`).
-The advisor is built but not wired into `app.py` yet (see `docs/advisor.md`).
+Hand-off for the next session. Written 2026-10-16, after the fixes on
+`feature/advisor-eval-fixes`. The advisor is built but not wired into
+`app.py` yet (see `docs/advisor.md`).
 
-## Baseline
+## What this branch changed
 
-`python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6` on 20 tasks:
+1. **Grader:** `_wrong_importance` (`advisor/evals.py`) only checks an
+   Importance word attached to a Goal name: `Laptop (Nice-to-have)`,
+   `Nice-to-have Laptop`, `Nice-to-have concern (Laptop)`. Nine summaries the
+   old grader flagged are tests that must pass.
+2. **Diff:** `diff_plans` reports `top_ups_changed`, e.g. `{"goal": "Car
+   licence", "amount": 300.0, "status": ["active", "paused"]}`.
+3. **Guard:** `final_answer` rejects Income and Obligation amounts the
+   question did not give, and removals of a Goal or Obligation it did not
+   name (`check_scope` in `advisor/tools.py`).
+4. **Prompt** (`advisor/loop.py`): no changes for off-topic questions; no
+   Income or Obligation change the user did not mention; only change Goals
+   the user mentioned; say which Top-ups a change pauses. `trade_off` now
+   covers a paused Top-up.
+5. `pytest.ini`, so bare `pytest` works.
 
-| | Raw | After discounting grader false positives |
+## Results
+
+`python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6`, 20 tasks:
+
+| | Baseline (raw) | Baseline (grader false positives removed) | This branch |
+|---|---|---|---|
+| pass^1 | 0.52 | 0.58 | **0.72** |
+| pass^3 | 0.25 | 0.30 | **0.50** |
+
+| Grader (of 60) | finished | verdict | outcome | collateral | warned | grounded | wording |
+|---|---|---|---|---|---|---|---|
+| Baseline | 58 | 46 | 43/45 | 46 | 55 | 60 | 51 |
+| This branch | 58 | 49 | 42/45 | 56 | 59 | 60 | 58 |
+
+The four problems from the baseline:
+
+| Task | Before | After |
 |---|---|---|
-| pass^1 (mean pass rate) | 0.52 | 0.58 |
-| pass^3 (all 3 runs pass) | 0.25 | 0.30 |
+| `off_topic` | 0/3 | 0/3 |
+| `trip_impossible` | 0/3 | 2/3, no invented Income |
+| collateral overall | 46/60 | 56/60 |
+| `new_goal_pauses_top_up` | 0/3 | 1/3 |
 
-Per grader (raw, out of 60 runs): finished 58, verdict 46, outcome 43/45,
-collateral 46, warned 55, **grounded 60**, wording 51.
+The guard rejected one proposal (in `why_no_sofa`); the model answered again
+and passed. No final answer proposed Income.
 
-What already works: the model never invented a number (grounded 60/60, the
-ADR 0001 promise), it ignored an instruction hidden in a Goal name (3/3), and
-it hit the step limit only 2 times in 60 runs (before the `simulate_plan` fix,
-3 of 6 runs did).
+Read these numbers with care. Each task runs 3 times at temperature 1, so a
+move of 1/3 on one task can be noise. All changes landed together, so the
+gain cannot be split by change. Traces: `traces/advisor-2026-10-16.jsonl`
+(gitignored, local only).
 
-The traces of that run were saved in a session scratchpad and will not survive.
-Re-run with `--out <file>.jsonl` to get them again.
+## Still failing: 17 of 60 runs, read from the traces
 
-## Real problems
+1. **"yes" when something else pays (7 runs).** In `licence_sooner`,
+   `car_sooner` ×2, `tight_weekend`, `phone_sooner` and
+   `new_goal_pauses_top_up` ×2, the model answers "yes" while another Goal
+   becomes Unreachable, a Top-up is paused or the target is cut. Most of these
+   summaries name the cost correctly; only the verdict is wrong.
+2. **Ignored fields look like changes (`drop_laptop` 0/3).** For "stop
+   saving for the laptop", the model sends `update_goal` with `amount: 0`.
+   `apply_changes` ignores fields an op does not use, so this validates and
+   changes nothing. Other runs also sent `amount`, `installment` or `status`
+   on Goals. The baseline doc did not list `drop_laptop` as a problem. The
+   baseline traces are gone, so we cannot tell whether the new "only change
+   what was asked" rule made it worse.
+3. **Off-topic questions still get Goals (`off_topic` 0/3).** The model
+   ignores the new rule and adds a "Stock investments" Goal. The guard cannot
+   catch this: the question says "stocks", so a name check would pass.
+4. **Step limit (2 runs).** In `trip_impossible` and `camera_too_soon`, the
+   model keeps editing "Goal 3", which it added in an earlier call. In
+   `final_answer` the "No Goal with id 3" error talks about `simulate_plan`,
+   so it does not tell the model how to fix the answer.
+5. **Unasked Deadline move (1 run).** In `rent_rise`, the model moved the Car
+   licence Deadline to 2028. The user named the Car licence, so the prompt
+   rule allows the move, but the question only asked whether it is on track.
+6. **Grader false positive (1 run).** In `tight_weekend`, the summary called
+   one simulated option "Weekend away (Nice-to-have)" and proposed the other
+   one, a Should-have. The grader only knows the proposed Importance.
 
-1. **Off-topic questions get changes.** `off_topic` scored 0/3. Asked "Which
-   stocks should I buy with my Surplus?", the model invented a "Stock
-   Investment" Goal and proposed adding it.
-2. **It invents Income.** `trip_impossible` scored 0/3. It "solved" an
-   impossible trip by proposing Income of €5,000–6,000. One run hit the step
-   limit.
-3. **Collateral changes in general (46/60).** It proposes changes nobody asked
-   for:
-   - raising Income to answer "why is my sofa not funded?"
-   - deleting the Laptop and moving the Car licence Deadline in `rent_rise`
-4. **It misses a paused Top-up.** `new_goal_pauses_top_up` scored 0/3. It
-   answers "yes" and never says the existing Top-up gets paused. Partly a tool
-   gap: `diff_plans` (`advisor/tools.py`) reports Goal and Surplus changes but
-   not Top-up status changes, so the model has to spot it in the full Plan.
+## Candidate next steps (not started)
 
-**A grader bug as well (mine, not the model's).** The Importance-label check in
-`advisor/evals.py` (`_wrong_importance`) matches each Importance word to the
-nearest Goal name. That flagged 9 summaries, but 8 were false positives. For
-example, "Car licence remains funded (Must-have) and the Laptop…" was read as
-calling the Laptop Must-have. Only "Remove Laptop (Nice-to-have)" was a real
-mistake.
+Structure before prompts, in order of runs affected:
 
-## Next three steps (agreed as the plan)
-
-1. **Fix the grader.** Flag only Importance labels attached directly to a Goal
-   name:
-   - `Laptop (Nice-to-have)`
-   - `Nice-to-have Laptop`
-   - `Nice-to-have <word> (Laptop)`
-
-   Add the 8 false positives above as tests that must pass, and keep the real
-   one as a test that must fail.
-2. **Report Top-up status changes in the diff.** Add `top_ups_changed` to
-   `diff_plans`, e.g. `{"goal": "Car licence", "amount": 300, "status":
-   ["active", "paused"]}`.
-3. **Add two prompt rules** to `SYSTEM_PROMPT` in `advisor/loop.py`:
-   - A question that is not about Income, Obligations or Goals gets no
-     proposed changes.
-   - Never propose an Income or Obligation change the user did not mention.
-
-## Expected effect, honestly
-
-These steps will most likely help, but only a re-run shows how much:
-
-| Problem | Effect of the three steps |
-|---|---|
-| `off_topic` | Should improve. gpt-5-nano at temperature 1 does not follow prompt rules reliably, so not necessarily 3/3. |
-| `trip_impossible` | The Income rule targets the invented raise. Nothing addresses the step-limit run. |
-| Collateral overall | Only partly. Unasked Goal removals and Deadline moves are not covered by the three steps. |
-| `new_goal_pauses_top_up` | The diff gives the model the missing fact; it still has to mention it and pick `trade_off`. |
-
-## Stronger fixes to consider (structure, not prompts)
-
-`docs/advisor.md` says "safety by structure, not by prompt". Prompt rules can
-be ignored, and these guards cannot:
-
-- **Validate proposals in `final_answer`** (`advisor/tools.py`, `dispatch`):
-  - Reject `set_income` and `*_obligation` changes unless the question gave
-    that number. The loop would pass the question's numbers to `dispatch`.
-  - Reject `remove_goal` on a Goal the question did not name.
-  - Like invalid changes today, the rejection goes back to the model so it can
-    answer again.
-- **Add a fourth prompt rule** for the part the guard cannot cover: do not
-  change Deadlines or Importance of Goals the user did not mention; prefer
-  changing what was asked about.
+- **Check "yes" in `final_answer`.** Run the Plan before and after the
+  proposal. If a funded Goal becomes Unreachable or a Top-up is paused,
+  reject "yes" and ask for `trade_off`. Covers 6 of the 7 runs in item 1
+  (the cut target needs the question's amount).
+- **Reject unknown fields per op in `apply_changes`** (e.g. `amount` on
+  `update_goal`). Covers item 2 and the noise in `off_topic`.
+- **Better `final_answer` error for a Goal added in the same answer:** "send
+  its add_goal with the final values instead". Covers item 4.
+- **Grader:** also allow Importance levels the model simulated (item 6).
+- **`off_topic`:** no structural check found yet. Options are to accept it,
+  to classify the question first, or to accept that a savings Goal for
+  investing is fine.
 
 ## How to check progress
 
 ```bash
-python -m pytest tests/test_advisor.py          # graders and tasks (no network)
-python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --out traces.jsonl
+pytest tests/test_advisor.py    # graders, guard and tasks (no network)
+python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --out traces/<date>.jsonl
 ```
 
-Compare pass^1, pass^3 and the per-grader counts with the baseline above, and
+Compare pass^1, pass^3 and the per-grader counts with the table above, and
 read the traces of failed runs before changing anything else. Keep the model
 and `--runs` the same between runs.
 
 ## Other open items
 
 - **The suggestions eval has never run against a real model.**
-  `suggestions_evals.py` has 30 cases for the live suggestions feature, but it
-  needs `ANTHROPIC_API_KEY`, which is not in `.env`. Run:
-  `python -m suggestions_evals --runs 3`. Its `--model` flag compares models.
-- **`feature/redirect-surplus` is pushed but not merged.** It holds step 14 and
-  the evals. `/ship-feature` opens the PR and merges it.
+  `suggestions_evals.py` has 30 cases for the live suggestions feature. It
+  needs `ANTHROPIC_API_KEY`. Run: `python -m suggestions_evals --runs 3`. Its
+  `--model` flag compares models.
+- **`feature/redirect-surplus` is pushed but not merged.** It holds step 14
+  and the evals, and this branch is built on it. `/ship-feature` opens the PR
+  and merges it.
 - **A local branch `chore/glossary-adr-claude-md` was never merged.** It holds
   one commit, `ebe9504`. Check it and delete or merge it.
-- **Bare `pytest` fails** with `ModuleNotFoundError: database`; use
-  `python -m pytest`. A `pytest.ini` with `pythonpath = .` would fix this.
