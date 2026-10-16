@@ -17,7 +17,7 @@ python -m advisor.evals --model gpt-5-nano --runs 3   # real-model eval of the a
 python -m suggestions_evals --runs 3                  # real-model eval of suggestions.py (ANTHROPIC_API_KEY)
 ```
 
-The two evals call real models (cost, minutes) and are never run by `pytest`; their graders and cases are tested in `tests/test_advisor.py` and `tests/test_suggestions_evals.py`.
+The two evals call real models (cost, minutes) and are never run by `pytest`; their graders and cases are tested in `tests/test_advisor.py` and `tests/test_suggestions_evals.py`. Every run is kept (`eval_results.py`): its traces in `evals/results/<eval>/` and one row in `evals/results/runs.csv` with model, commit and scores, all committed. Label a run with `--note "..."`; `--no-save` keeps nothing.
 
 Tracing: set `LANGSMITH_TRACING=true` in `.env` to send advisor and suggestion runs to LangSmith (`advisor/tracing.py`; off in tests and never set on Railway). The Claude Code workflow is traced separately via the LangSmith plugin. Setup in `docs/observability.md`.
 

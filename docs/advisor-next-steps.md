@@ -49,8 +49,8 @@ and passed. No final answer proposed Income.
 
 Read these numbers with care. Each task runs 3 times at temperature 1, so a
 move of 1/3 on one task can be noise. All changes landed together, so the
-gain cannot be split by change. Traces: `traces/advisor-2026-10-16.jsonl`
-(gitignored, local only).
+gain cannot be split by change. Traces:
+`evals/results/advisor/2026-10-16_184250_gpt-5-nano_3d82fc6-dirty.jsonl`.
 
 ## Still failing: 17 of 60 runs, read from the traces
 
@@ -101,10 +101,10 @@ Structure before prompts, in order of runs affected:
 
 ```bash
 pytest tests/test_advisor.py    # graders, guard and tasks (no network)
-python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --out traces/<date>.jsonl
+python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --note "what changed"
 ```
 
-Compare pass^1, pass^3 and the per-grader counts with the table above, and
+Compare pass^1, pass^3 and the per-grader counts with `evals/results/runs.csv`, and
 read the traces of failed runs before changing anything else. Keep the model
 and `--runs` the same between runs.
 

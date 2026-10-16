@@ -26,7 +26,7 @@ LANGSMITH_PROJECT=spendly-app
 Then any of these sends traces:
 
 ```bash
-python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --out traces.jsonl
+python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6
 python -m suggestions_evals --runs 3
 python app.py        # click "Suggest Importance and Dependencies" on a Goal
 ```
@@ -52,7 +52,7 @@ A suggestion is `suggest_goal (chain) > ChatAnthropic (llm)`.
 - **Monitoring tab:** latency, token, cost and error-rate charts per project, over time.
 - **Compare models:** run the evals with two `--model` values. `metadata.model` splits them.
 
-Workflow: run evals → `--out traces.jsonl` gives the pass/fail table → open the failed scenario in LangSmith to see *why* it failed → fix the prompt or the task → rerun.
+Workflow: run evals → `evals/results/runs.csv` gets the scores and `evals/results/<eval>/` the traces → open the failed scenario in LangSmith to see *why* it failed → fix the prompt or the task → rerun.
 
 ## 3. Trace the Claude Code workflow (`spendly-build`)
 
