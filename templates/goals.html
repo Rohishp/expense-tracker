@@ -42,6 +42,9 @@
                     <td class="col-amount">€{{ g.saved_amount|eur }}</td>
                     <td class="col-amount">€{{ g.target_amount|eur }}</td>
                     <td class="col-actions">
+                        {% if g.saved_amount < g.target_amount %}
+                        <a href="{{ url_for('lump_sum', id=g.id) }}">Add Lump Sum</a>
+                        {% endif %}
                         <a href="{{ url_for('edit_goal', id=g.id) }}">Edit</a>
                         <a href="{{ url_for('delete_goal', id=g.id) }}" class="link-danger">Delete</a>
                     </td>

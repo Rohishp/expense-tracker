@@ -37,6 +37,15 @@
         <div class="plan-banner">Your Obligations are more than your Income, so no Goal can be funded.</div>
         {% endif %}
 
+        {% for g in plan["items"] if g.status == 'fully_funded' %}
+        <div class="goal-notice plan-notice">
+            {{ g.name }} is fully funded.
+            {% if plan.surplus_limit > 0 %}
+            <a href="{{ url_for('redirect_money', source='surplus') }}">Redirect your Surplus</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+
         {% if plan["items"] %}
         <table class="obligations-table goals-table plan-table">
             <thead>
@@ -51,7 +60,20 @@
             <tbody>
                 {% for g in plan["items"] %}
                 <tr>
-                    <td>{{ g.name }}</td>
+                    <td>
+                        {{ g.name }}
+                        {% for t in plan.top_ups if t.goal_id == g.id %}
+                        <div class="plan-top-up plan-top-up-{{ t.status }}">
+                            Top-up €{{ t.amount|eur }} a month,
+                            {% if t.status == 'active' %}active
+                            {% elif t.status == 'scheduled' %}from {{ t.start_date }}
+                            {% elif t.status == 'finished' %}finished
+                            {% else %}paused: not enough Income
+                            {% endif %}
+                            <a href="{{ url_for('delete_top_up', id=t.id) }}" class="link-danger">Delete</a>
+                        </div>
+                        {% endfor %}
+                    </td>
                     <td><span class="importance-badge importance-{{ g.importance|lower }}">{{ g.importance }}</span></td>
                     <td>{{ g.deadline }}</td>
                     <td class="col-amount">€{{ g.installment|eur }}</td>
@@ -81,10 +103,76 @@
         <p class="obligations-empty">No Goals yet. <a href="{{ url_for('add_goal') }}">Add a Goal</a> to see how your Income is split.</p>
         {% endif %}
 
-        <div class="income-card plan-surplus">
-            <span class="income-label">Surplus</span>
-            <span class="plan-figure">€{{ plan.surplus|eur }}</span>
+        {% if plan.savings_pot.amounts %}
+        <h2 class="plan-heading">Savings Pot</h2>
+        {% if plan.savings_pot.funded < plan.savings_pot.set %}
+        <div class="plan-warning plan-pot-warning">
+            <strong>Savings Pot cut to €{{ plan.savings_pot.funded|eur }} of €{{ plan.savings_pot.set|eur }}</strong>
+            <span>Your Income cannot cover it after your Goals and Top-ups.</span>
         </div>
+        {% endif %}
+        <table class="obligations-table plan-table">
+            <thead>
+                <tr>
+                    <th>Starts</th>
+                    <th class="col-amount">Per month</th>
+                    <th class="col-actions"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in plan.savings_pot.amounts %}
+                <tr>
+                    <td>{% if p.start_period == 0 %}Now{% else %}{{ p.start_date }}{% endif %}</td>
+                    <td class="col-amount">€{{ p.amount|eur }}</td>
+                    <td class="col-actions">
+                        <a href="{{ url_for('delete_pot_amount', id=p.id) }}" class="link-danger">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div class="income-card plan-surplus">
+            <div>
+                <span class="income-label">Surplus</span>
+                <span class="plan-figure">€{{ plan.surplus|eur }}</span>
+            </div>
+            {% if plan.surplus_limit > 0 %}
+            <a href="{{ url_for('redirect_money', source='surplus') }}" class="btn-primary">Redirect</a>
+            {% endif %}
+        </div>
+
+        {% if plan.freed %}
+        <h2 class="plan-heading">Coming up</h2>
+        <p class="obligations-subtitle">When a Goal is funded, its Installment is freed for you to redirect.</p>
+        <table class="obligations-table plan-table">
+            <thead>
+                <tr>
+                    <th>Goal</th>
+                    <th>Freed from</th>
+                    <th class="col-amount">Freed Installment</th>
+                    <th class="col-actions"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in plan.freed %}
+                <tr>
+                    <td>{{ f.name }}</td>
+                    <td>{{ f.freed_date }}</td>
+                    <td class="col-amount">€{{ f.amount|eur }}</td>
+                    <td class="col-actions">
+                        {% if f.limit > 0 %}
+                        <a href="{{ url_for('redirect_money', source='goal', goal_id=f.goal_id) }}">Redirect{% if f.limit < f.amount %} €{{ f.limit|eur }}{% endif %}</a>
+                        {% else %}
+                        <span class="plan-muted">Already redirected</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
 
         {% endif %}
 
