@@ -1,7 +1,10 @@
 """Eval set for the advisor: what-if questions whose answers the planner can check.
 
 Run against a real model (each task several times, in parallel):
-    python -m advisor.evals --model <model-name> --runs 3 --workers 5 --out traces.jsonl
+    python -m advisor.evals --model <model-name> --runs 3 --workers 5 --note "what changed"
+
+Every run is kept: its traces go to evals/results/advisor/ and its scores to
+evals/results/runs.csv (see eval_results.py). --no-save keeps nothing.
 
 Every grader is code, not an LLM, so a score means the same thing every time.
 A run passes only if every check that applies to its task passes:
@@ -32,9 +35,10 @@ import copy
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from math import comb
 
+import eval_results
 from advisor.loop import AdvisorResult, run_advisor
 from advisor.tools import ToolError, apply_changes, dispatch, run_plan
 from advisor.tracing import run_extra
@@ -613,7 +617,9 @@ def main():
     parser.add_argument("--runs", type=int, default=3, help="runs per task (pass^k uses k = runs)")
     parser.add_argument("--workers", type=int, default=4, help="runs in parallel")
     parser.add_argument("--only", default="", help="comma-separated task ids")
-    parser.add_argument("--out", default="", help="write every run's trace to this JSONL file")
+    parser.add_argument("--out", default="", help="write the traces here instead of evals/results/advisor/")
+    parser.add_argument("--note", default="", help="what this run tests, saved in runs.csv")
+    parser.add_argument("--no-save", action="store_true", help="keep no traces and no runs.csv row")
     args = parser.parse_args()
 
     load_dotenv()
@@ -637,7 +643,10 @@ def main():
             return sc, run, crashed, s, f"{type(exc).__name__}: {exc}"
 
     by_task = {}
-    out = open(args.out, "w", encoding="utf-8") if args.out else None
+    started, commit = datetime.now(), eval_results.git_commit()
+    path = args.out or ("" if args.no_save else
+                        eval_results.trace_path("advisor", started, args.model, commit))
+    out = eval_results.open_traces(path) if path else None
     try:
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futures = [pool.submit(one, task) for task in tasks]
@@ -666,10 +675,17 @@ def main():
         vals = [s[key] for s in every if key in s]
         return f"{sum(vals)}/{len(vals)}" if vals else "n/a"
 
-    print(f"\npass^1 {pass_hat_k(by_task, 1):.2f} | pass^{args.runs} "
-          f"{pass_hat_k(by_task, args.runs):.2f} over {len(by_task)} tasks")
-    print(" | ".join(f"{k} {rate(k)}" for k in
-                     ("finished", "verdict", "outcome", "collateral", "warned", "grounded", "wording")))
+    graders = {k: rate(k) for k in
+               ("finished", "verdict", "outcome", "collateral", "warned", "grounded", "wording")}
+    pass_1, pass_k = pass_hat_k(by_task, 1), pass_hat_k(by_task, args.runs)
+    print(f"\npass^1 {pass_1:.2f} | pass^{args.runs} {pass_k:.2f} over {len(by_task)} tasks")
+    print(" | ".join(f"{k} {v}" for k, v in graders.items()))
+
+    if not args.no_save:
+        note = "; ".join(filter(None, [args.note, args.only and f"only {args.only}"]))
+        eval_results.record_run("advisor", started, args.model, commit, args.runs, len(by_task),
+                                pass_1, pass_k, graders, path, note)
+        print(f"saved {path} and a row in evals/results/runs.csv")
 
 
 if __name__ == "__main__":

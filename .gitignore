@@ -7,7 +7,7 @@ __pycache__/
 .DS_Store
 .claude/plans/
 
-# advisor eval traces (python -m advisor.evals --out)
+# scratch eval traces (--out); kept runs go to evals/results/, which is committed
 traces/
 .claude/settings.local.json
 traces*.jsonl

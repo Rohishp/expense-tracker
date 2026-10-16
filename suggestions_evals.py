@@ -5,6 +5,9 @@ Run against the real model (needs ANTHROPIC_API_KEY, e.g. in .env):
     python -m suggestions_evals --runs 3
     python -m suggestions_evals --runs 3 --model <model-id>   # compare models
 
+Every run is kept: its traces go to evals/results/suggestions/ and its scores
+to evals/results/runs.csv (see eval_results.py). --no-save keeps nothing.
+
 A wrong Dependency is the costly mistake: the Plan keeps a Goal Unreachable
 ("Waiting for ...") until its prerequisite is funded. So every case lists the
 acceptable Dependency sets exactly, the report shows false Dependencies on
@@ -19,12 +22,15 @@ code; tests/test_suggestions_evals.py checks the cases and the scoring.
 """
 
 import argparse
+import json
 import os
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from math import comb
 
+import eval_results
 from advisor.tracing import run_extra
 
 MUST, SHOULD, NICE = "Must-have", "Should-have", "Nice-to-have"
@@ -191,6 +197,9 @@ def main():
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--model", default="", help="sets SPENDLY_LLM_MODEL for this run")
     parser.add_argument("--only", default="", help="comma-separated case ids")
+    parser.add_argument("--out", default="", help="write the traces here instead of evals/results/suggestions/")
+    parser.add_argument("--note", default="", help="what this run tests, saved in runs.csv")
+    parser.add_argument("--no-save", action="store_true", help="keep no traces and no runs.csv row")
     args = parser.parse_args()
 
     load_dotenv()
@@ -201,6 +210,7 @@ def main():
 
     import suggestions
 
+    model = os.environ.get("SPENDLY_LLM_MODEL", suggestions.DEFAULT_MODEL)
     wanted = {i for i in args.only.split(",") if i}
     tasks = [(c, run) for c in CASES if not wanted or c["id"] in wanted
              for run in range(args.runs)]
@@ -216,24 +226,51 @@ def main():
         return case, run, suggestion, time.perf_counter() - started
 
     results, latencies = {}, []
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        for case, run, suggestion, seconds in pool.map(one, tasks):
-            s = score(case, suggestion)
-            results.setdefault(case["id"], []).append(s)
-            latencies.append(seconds)
-            got = "unavailable" if suggestion is None else (
-                f"{suggestion['importance']}, depends_on={sorted(suggestion['depends_on'])}")
-            print(f"{case['id']:<26} run {run}  {'PASS' if s['passed'] else 'FAIL'}  {got}")
+    started_at, commit = datetime.now(), eval_results.git_commit()
+    path = args.out or ("" if args.no_save else
+                        eval_results.trace_path("suggestions", started_at, model, commit))
+    out = eval_results.open_traces(path) if path else None
+    try:
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for case, run, suggestion, seconds in pool.map(one, tasks):
+                s = score(case, suggestion)
+                results.setdefault(case["id"], []).append(s)
+                latencies.append(seconds)
+                got = "unavailable" if suggestion is None else (
+                    f"{suggestion['importance']}, depends_on={sorted(suggestion['depends_on'])}")
+                print(f"{case['id']:<26} run {run}  {'PASS' if s['passed'] else 'FAIL'}  {got}")
+                if out:
+                    out.write(json.dumps({"case": case["id"], "run": run, "score": s,
+                                          "suggestion": suggestion,
+                                          "seconds": round(seconds, 2)}) + "\n")
+                    out.flush()
+    finally:
+        if out:
+            out.close()
 
     m = summarise(results)
-    model = os.environ.get("SPENDLY_LLM_MODEL", suggestions.DEFAULT_MODEL)
-    print(f"\nmodel {model} | pass^1 {pass_hat_k(results, 1):.2f} | "
-          f"pass^{args.runs} {pass_hat_k(results, args.runs):.2f} over {len(results)} cases")
+    pass_1, pass_k = pass_hat_k(results, 1), pass_hat_k(results, args.runs)
+    print(f"\nmodel {model} | pass^1 {pass_1:.2f} | "
+          f"pass^{args.runs} {pass_k:.2f} over {len(results)} cases")
     print(f"available {m['available']:.2f} | importance {m['importance']:.2f} | "
           f"dependencies exact {m['dependencies_exact']:.2f} | precision "
           f"{m['dependency_precision']:.2f} | recall {m['dependency_recall']:.2f} | "
           f"runs with a false Dependency {m['runs_with_a_false_dependency']} | "
           f"median {statistics.median(latencies):.1f}s")
+
+    if not args.no_save:
+        graders = {
+            "available": f"{m['available']:.2f}", "importance": f"{m['importance']:.2f}",
+            "dependencies_exact": f"{m['dependencies_exact']:.2f}",
+            "precision": f"{m['dependency_precision']:.2f}",
+            "recall": f"{m['dependency_recall']:.2f}",
+            "false_dependency_runs": m["runs_with_a_false_dependency"],
+            "median_s": f"{statistics.median(latencies):.1f}",
+        }
+        note = "; ".join(filter(None, [args.note, args.only and f"only {args.only}"]))
+        eval_results.record_run("suggestions", started_at, model, commit, args.runs, len(results),
+                                pass_1, pass_k, graders, path, note)
+        print(f"saved {path} and a row in evals/results/runs.csv")
 
 
 if __name__ == "__main__":

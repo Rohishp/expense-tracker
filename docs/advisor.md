@@ -25,16 +25,16 @@ Laptop become an Unreachable Goal, try a later Deadline, compare, then answer.
 | `advisor/loop.py` | The loop: model picks a tool, sees the result, repeats; `max_steps=8`; every step traced |
 | `advisor/openai_client.py` | OpenAI Chat Completions adapter, `temperature=0` (left out for `gpt-5*` models, which only accept the default) |
 | `advisor/apply.py` | The only write path, run after the user confirms; re-validates against fresh data and keeps a Goal's Dependencies |
-| `advisor/evals.py` | 20 tasks over 8 fixtures (Dependencies, Saved Amounts, over-committed, no Income, Top-ups, injection, off-topic). Code-only graders: finished, verdict, outcome, collateral, warned, grounded, wording. Reports pass^1 and pass^k over `--runs`; `--out` saves every trace as JSONL |
+| `advisor/evals.py` | 20 tasks over 8 fixtures (Dependencies, Saved Amounts, over-committed, no Income, Top-ups, injection, off-topic). Code-only graders: finished, verdict, outcome, collateral, warned, grounded, wording. Reports pass^1 and pass^k over `--runs`; every run's traces and scores are saved under `evals/results/` |
 | `tests/test_advisor.py` | Loop tests with a scripted fake model; every task's reference answer passes every grader; the graders catch the failures seen in real traces |
 
 ## Running the evals
 
 ```bash
-python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --out traces.jsonl
+python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --note "what changed"
 ```
 
-Needs `OPENAI_API_KEY` (read from `.env`). It calls the real model, so it costs money and takes minutes; `pytest` never runs it. Read the traces of failed runs before changing the prompt: a failure can be the agent's or the task's.
+Needs `OPENAI_API_KEY` (read from `.env`). It calls the real model, so it costs money and takes minutes; `pytest` never runs it. Read the traces of failed runs before changing the prompt: a failure can be the agent's or the task's. Each run adds its traces to `evals/results/advisor/` and a row to `evals/results/runs.csv`, so compare against earlier rows there.
 
 ## Safety by structure, not by prompt
 
