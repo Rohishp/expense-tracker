@@ -11,6 +11,7 @@ import re
 from datetime import date
 
 import planner
+from advisor.tracing import traceable
 
 IMPORTANCE_LEVELS = list(planner.IMPORTANCE_ORDER)
 CHANGE_OPS = [
@@ -221,6 +222,7 @@ def apply_changes(snapshot, changes, today):
 # ---------------------------------------------------------------- plan views
 
 
+@traceable(name="planner.plan")
 def run_plan(snapshot, today):
     if snapshot["income"] is None:
         raise ToolError("Income is not set. Add a set_income change to simulate.")

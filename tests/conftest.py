@@ -1,3 +1,10 @@
+import os
+
+# Tests never send traces, even if LANGSMITH_TRACING is set in the shell.
+# Set before langsmith is imported, because it caches the setting.
+os.environ["LANGSMITH_TRACING"] = "false"
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 import pytest
 
 import database.db as db

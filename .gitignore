@@ -9,3 +9,5 @@ __pycache__/
 
 # advisor eval traces (python -m advisor.evals --out)
 traces/
+.claude/settings.local.json
+traces*.jsonl

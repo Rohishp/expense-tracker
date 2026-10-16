@@ -1,0 +1,8 @@
+{
+  "env": {
+    "TRACE_TO_LANGSMITH": "true",
+    "CC_LANGSMITH_API_KEY": "lsv2_...",
+    "CC_LANGSMITH_PROJECT": "spendly-build",
+    "CC_LANGSMITH_METADATA": "{\"repo\": \"expense-tracker\"}"
+  }
+}

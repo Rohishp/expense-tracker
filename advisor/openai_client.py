@@ -10,7 +10,9 @@ def make_openai_caller(model, temperature=0):
     """
     from openai import OpenAI
 
-    client = OpenAI()
+    from advisor.tracing import wrap_client
+
+    client = wrap_client(OpenAI())  # no-op unless tracing is on
     extra = {} if model.startswith("gpt-5") else {"temperature": temperature}
 
     def call_model(messages, tools):

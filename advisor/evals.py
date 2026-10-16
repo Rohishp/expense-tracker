@@ -37,6 +37,7 @@ from math import comb
 
 from advisor.loop import AdvisorResult, run_advisor
 from advisor.tools import ToolError, apply_changes, dispatch, run_plan
+from advisor.tracing import run_extra
 
 TODAY = date(2026, 10, 16)
 MET = ("funded", "fully_funded")
@@ -626,7 +627,9 @@ def main():
     def one(task):
         sc, run = task
         try:
-            result = run_advisor(sc["question"], snapshot_for(sc), call_model, TODAY)
+            result = run_advisor(sc["question"], snapshot_for(sc), call_model, TODAY,
+                                 **run_extra({"scenario": sc["id"], "run": run,
+                                              "model": args.model}, ["eval"]))
             return sc, run, result, score(sc, result), None
         except Exception as exc:  # one broken run must not lose the others
             crashed = AdvisorResult(None, "", [], "crashed")

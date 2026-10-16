@@ -1149,4 +1149,9 @@ def lump_sum(id):
 
 
 if __name__ == "__main__":
+    # Dev server only: gunicorn (Railway) never runs this block, so a local
+    # .env, including LANGSMITH_TRACING, can never switch tracing on in production.
+    from dotenv import load_dotenv
+
+    load_dotenv()
     app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1", port=5001)

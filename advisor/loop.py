@@ -11,6 +11,13 @@ import time
 from dataclasses import dataclass, field
 
 from advisor.tools import TOOLS, dispatch
+from advisor.tracing import traceable
+
+# One traced runner per tool, so each call shows in the trace under its own name.
+_TOOL_RUNNERS = {
+    t["function"]["name"]: traceable(name=t["function"]["name"], run_type="tool")(dispatch)
+    for t in TOOLS
+}
 
 SYSTEM_PROMPT = """You are the savings advisor inside Spendly.
 The user asks a what-if question about their Income, Obligations and Goals.
@@ -51,6 +58,7 @@ class AdvisorResult:
         return sum(1 for t in self.trace if t["type"] == "tool")
 
 
+@traceable(name="advisor", run_type="chain")
 def run_advisor(question, snapshot, call_model, today, max_steps=8):
     """Answer `question` about `snapshot`.
 
@@ -85,7 +93,8 @@ def run_advisor(question, snapshot, call_model, today, max_steps=8):
             continue
 
         for call in calls:
-            result, is_final = dispatch(call["name"], call["arguments"], snapshot, today, question)
+            runner = _TOOL_RUNNERS.get(call["name"], dispatch)
+            result, is_final = runner(call["name"], call["arguments"], snapshot, today, question)
             trace.append({"type": "tool", "step": step, "name": call["name"],
                           "arguments": call["arguments"], "result": result})
             if is_final:
