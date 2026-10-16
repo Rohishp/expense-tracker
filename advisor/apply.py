@@ -23,8 +23,11 @@ def apply_confirmed(user_id, changes, today=None):
             goal = queries.get_goal(c["goal_id"], user_id)
             goal.update({k: c[k] for k in ("name", "target_amount", "saved_amount",
                                            "deadline", "importance") if k in c})
+            # Pass the Dependencies through: update_goal replaces them, and the
+            # advisor never changes them.
             queries.update_goal(c["goal_id"], user_id, goal["name"], goal["target_amount"],
-                                goal["saved_amount"], goal["deadline"], goal["importance"])
+                                goal["saved_amount"], goal["deadline"], goal["importance"],
+                                goal["depends_on"])
         elif op == "remove_goal":
             queries.delete_goal(c["goal_id"], user_id)
         elif op == "set_income":

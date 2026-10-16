@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Add Lump Sum — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/delete_expense.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/redirect.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="expense-form-section">
+    <div class="expense-form-container">
+
+        <div class="expense-form-header">
+            <h1 class="expense-form-title">Add a Lump Sum</h1>
+            <p class="expense-form-subtitle">A one-off amount added to {{ goal.name }}'s Saved Amount. Its Deadline stays the same, so its Installment shrinks.</p>
+        </div>
+
+        <div class="expense-form-card">
+            {% if error %}
+            <div class="auth-error">{{ error }}</div>
+            {% endif %}
+
+            <dl class="expense-summary">
+                <div class="expense-summary-row">
+                    <dt>Saved Amount</dt>
+                    <dd>€{{ goal.saved_amount|eur }} of €{{ goal.target_amount|eur }}</dd>
+                </div>
+                <div class="expense-summary-row">
+                    <dt>Left to save</dt>
+                    <dd>€{{ remaining|eur }}</dd>
+                </div>
+                <div class="expense-summary-row">
+                    <dt>Deadline</dt>
+                    <dd>{{ goal.deadline }}</dd>
+                </div>
+            </dl>
+
+            {% if remaining <= 0 %}
+            <p class="redirect-empty">This Goal is fully funded.</p>
+            <div class="expense-form-actions">
+                <a href="{{ url_for('goals') }}" class="btn-ghost">Back to Goals</a>
+            </div>
+            {% else %}
+            <form method="POST" action="{{ url_for('lump_sum', id=goal.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="amount">Lump Sum</label>
+                    <input type="number" id="amount" name="amount" class="form-input"
+                           step="0.01" min="0.01" max="{{ remaining }}" placeholder="0.00"
+                           value="{{ form.get('amount', '') }}" required autofocus>
+                </div>
+                <p class="redirect-left" id="lump-sum-preview"
+                   data-remaining="{{ remaining }}" data-periods="{{ periods }}">
+                    Installment needed: €{{ installment|eur }},
+                    after this Lump Sum: €<span id="lump-sum-new">{{ installment|eur }}</span>
+                </p>
+                <div class="expense-form-actions">
+                    <button type="submit" class="btn-submit">Add Lump Sum</button>
+                    <a href="{{ url_for('goals') }}" class="btn-ghost">Cancel</a>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var preview = document.getElementById("lump-sum-preview");
+    if (!preview) { return; }
+    var remainingCents = Math.round(parseFloat(preview.dataset.remaining) * 100);
+    var periods = parseInt(preview.dataset.periods, 10);
+    var input = document.getElementById("amount");
+    var after = document.getElementById("lump-sum-new");
+
+    // Live preview only; the server renders both figures with planner.installment_for.
+    function update() {
+        var lump = Math.max(0, Math.round((parseFloat(input.value) || 0) * 100));
+        var value = Math.max(0, Math.ceil((remainingCents - lump) / periods)) / 100;
+        after.textContent = value.toLocaleString("en-US", {
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+    }
+
+    input.addEventListener("input", update);
+})();
+</script>
+{% endblock %}

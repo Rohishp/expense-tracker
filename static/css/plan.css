@@ -7,6 +7,7 @@
 }
 
 .plan-surplus {
+    flex-wrap: wrap;
     margin-top: 2rem;
     margin-bottom: 0;
 }
@@ -24,6 +25,44 @@
     background: var(--danger-light);
     border: 1px solid var(--danger);
     border-radius: var(--radius-md);
+}
+
+.plan-heading {
+    margin: 2.5rem 0 0.75rem;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--ink);
+}
+
+.plan-notice {
+    margin-bottom: 1.5rem;
+}
+
+.plan-muted {
+    color: var(--ink-faint);
+}
+
+.plan-top-up {
+    margin-top: 0.25rem;
+    color: var(--accent);
+    font-size: 0.8rem;
+}
+
+.plan-top-up-scheduled,
+.plan-top-up-finished {
+    color: var(--ink-muted);
+}
+
+.plan-top-up-paused {
+    color: var(--danger);
+}
+
+.plan-top-up a {
+    margin-left: 0.35rem;
+}
+
+.plan-pot-warning {
+    margin-bottom: 1rem;
 }
 
 .plan-warning {

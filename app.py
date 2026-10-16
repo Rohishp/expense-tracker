@@ -304,6 +304,9 @@ MAX_NAME_LENGTH = 60
 MAX_OBLIGATIONS = 100
 MAX_GOALS = 100
 MAX_DEADLINE_YEARS = 50
+# Every Plan loops over these, so they are capped like Goals (step 14 review).
+MAX_TOP_UPS = 100
+MAX_POT_AMOUNTS = 20
 
 
 def _validate_amount(raw, allow_zero=False):
@@ -895,20 +898,254 @@ def delete_goal(id):
 # ------------------------------------------------------------------ #
 
 
+def _current_plan(user_id, today):
+    """The user's Plan with their Top-ups and Savings Pot, or None without Income."""
+    income = queries.get_income(user_id)
+    if income is None:
+        return None
+    return planner.plan(
+        income,
+        queries.list_obligations(user_id),
+        queries.list_goals(user_id),
+        today,
+        queries.list_top_ups(user_id),
+        queries.list_pot_amounts(user_id),
+    )
+
+
 @app.route("/plan")
 @login_required
 def plan():
-    user_id = session["user_id"]
-    income = queries.get_income(user_id)
-    result = None
-    if income is not None:
-        result = planner.plan(
-            income,
-            queries.list_obligations(user_id),
-            queries.list_goals(user_id),
-            date.today(),
+    return render_template(
+        "plan.html", plan=_current_plan(session["user_id"], date.today())
+    )
+
+
+# ------------------------------------------------------------------ #
+# Redirect Surplus                                                    #
+# ------------------------------------------------------------------ #
+
+
+def _to_cents(amount):
+    return round(amount * 100)
+
+
+def _find_redirect_source(values, result, today):
+    """Where the money comes from, recomputed from the Plan; None if unknown.
+
+    Only the user's own funded Goals are in `result["freed"]`, so a missing,
+    foreign or unfunded `goal_id` is unknown in the same way.
+    """
+    if result is None:
+        return None
+    kind = values.get("source", "")
+    if kind == "surplus":
+        return {
+            "kind": "surplus",
+            "goal_id": None,
+            "name": None,
+            "start_date": today.isoformat(),
+            "start_period": 0,
+            "limit": result["surplus_limit"],
+        }
+    if kind == "goal":
+        try:
+            goal_id = int(values.get("goal_id", ""))
+        except ValueError:
+            return None
+        for freed in result["freed"]:
+            if freed["goal_id"] == goal_id:
+                return {
+                    "kind": "goal",
+                    "goal_id": goal_id,
+                    "name": freed["name"],
+                    "start_date": freed["freed_date"],
+                    "start_period": freed["freed_period"],
+                    "limit": freed["limit"],
+                }
+    return None
+
+
+def _redirect_context(user_id, values, today):
+    """(source, targets) from the Plan as it is now; (None, None) if unknown."""
+    result = _current_plan(user_id, today)
+    source = _find_redirect_source(values, result, today)
+    if source is None:
+        return None, None
+    targets = planner.redirect_targets(
+        result, source["start_period"], source["goal_id"]
+    )
+    return source, targets
+
+
+def _validate_redirect(form, targets, limit):
+    """Return (clean, error); `clean` has `top_ups`, a list of (goal_id, amount),
+    and `pot_amount` (or None). Empty fields are skipped."""
+    top_ups = []
+    for goal in targets:
+        raw = form.get(f"topup_{goal['id']}", "").strip()
+        if not raw:
+            continue
+        amount, error = _validate_amount(raw)
+        if error:
+            return None, f"Top-up for {goal['name']}: {error}"
+        top_ups.append((goal["id"], amount))
+
+    pot_amount = None
+    raw_pot = form.get("pot_amount", "").strip()
+    if raw_pot:
+        pot_amount, error = _validate_amount(raw_pot)
+        if error:
+            return None, f"Savings Pot: {error}"
+
+    if not top_ups and pot_amount is None:
+        return None, "Enter at least one amount to redirect."
+    total = sum(_to_cents(a) for _, a in top_ups) + _to_cents(pot_amount or 0)
+    if total > _to_cents(limit):
+        return None, f"You can redirect at most €{eur(limit)}."
+    return {"top_ups": top_ups, "pot_amount": pot_amount}, None
+
+
+def _check_redirect(user_id, form, source, targets):
+    """Return (clean, error) for a redirect: valid, within the limit, under the caps."""
+    clean, error = _validate_redirect(form, targets, source["limit"])
+    if error:
+        return None, error
+    if queries.count_top_ups(user_id) + len(clean["top_ups"]) > MAX_TOP_UPS:
+        return None, f"You can have at most {MAX_TOP_UPS} Top-ups. Delete some first."
+    if clean["pot_amount"] and queries.count_pot_amounts(user_id) >= MAX_POT_AMOUNTS:
+        return None, (
+            f"You can have at most {MAX_POT_AMOUNTS} Savings Pot amounts. "
+            "Delete some first."
         )
-    return render_template("plan.html", plan=result)
+    return clean, None
+
+
+@app.route("/plan/redirect", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def redirect_money():
+    user_id = session["user_id"]
+    today = date.today()
+    form = {}
+    values = request.args
+    if request.method == "POST":
+        form = values = request.form
+    source, targets = _redirect_context(user_id, values, today)
+    if source is None:
+        abort(404)
+    error = None
+
+    if request.method == "POST":
+        clean, error = _check_redirect(user_id, form, source, targets)
+        if not error:
+
+            def still_fits():
+                # Run again under the write lock: a redirect saved since the
+                # check above may have used this money.
+                fresh_source, fresh_targets = _redirect_context(user_id, form, today)
+                return fresh_source is not None and not _check_redirect(
+                    user_id, form, fresh_source, fresh_targets
+                )[1]
+
+            saved = queries.create_redirect(
+                user_id,
+                source["start_date"],
+                clean["top_ups"],
+                clean["pot_amount"],
+                still_fits=still_fits,
+            )
+            if saved is None:
+                error = "Your Plan changed meanwhile. Please try again."
+            else:
+                flash("Your money has been redirected.", "success")
+                return redirect(url_for("plan"))
+
+    return render_template(
+        "redirect.html", source=source, targets=targets, form=form, error=error
+    )
+
+
+@app.route("/top-ups/<int:id>/delete", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def delete_top_up(id):
+    top_up = queries.get_top_up(id, session["user_id"])
+    if top_up is None:
+        abort(404)
+
+    if request.method == "POST":
+        if not queries.delete_top_up(id, session["user_id"]):
+            abort(404)
+        flash("Top-up deleted.", "success")
+        return redirect(url_for("plan"))
+
+    return render_template(
+        "delete_top_up.html",
+        top_up=top_up,
+        starts_later=top_up["start_date"] > date.today().isoformat(),
+    )
+
+
+@app.route("/savings-pot/<int:id>/delete", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def delete_pot_amount(id):
+    pot_amount = queries.get_pot_amount(id, session["user_id"])
+    if pot_amount is None:
+        abort(404)
+
+    if request.method == "POST":
+        if not queries.delete_pot_amount(id, session["user_id"]):
+            abort(404)
+        flash("Savings Pot amount deleted.", "success")
+        return redirect(url_for("plan"))
+
+    return render_template(
+        "delete_pot_amount.html",
+        pot_amount=pot_amount,
+        starts_later=pot_amount["start_date"] > date.today().isoformat(),
+    )
+
+
+def _validate_lump_sum(raw, remaining):
+    """Return (amount, error) for a Lump Sum on a Goal with `remaining` to save."""
+    amount, error = _validate_amount(raw)
+    if not error and amount > remaining:
+        return None, f"A Lump Sum cannot be more than the €{eur(remaining)} left to save."
+    return amount, error
+
+
+@app.route("/goals/<int:id>/lump-sum", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def lump_sum(id):
+    user_id = session["user_id"]
+    goal = queries.get_goal(id, user_id)
+    if goal is None:
+        abort(404)
+
+    remaining = round(goal["target_amount"] - goal["saved_amount"], 2)
+    error = None
+
+    if request.method == "POST":
+        amount, error = _validate_lump_sum(request.form.get("amount", ""), remaining)
+        if not error and not queries.add_lump_sum(id, user_id, amount):
+            error = "This Goal changed meanwhile. Please try again."
+        if not error:
+            flash("Lump Sum added.", "success")
+            return redirect(url_for("plan"))
+
+    periods = planner.periods_until(goal["deadline"], date.today())
+    return render_template(
+        "lump_sum.html",
+        goal=goal,
+        remaining=remaining,
+        periods=periods,
+        installment=planner.installment_for(remaining, periods) if remaining > 0 else 0,
+        form=request.form,
+        error=error,
+    )
 
 
 if __name__ == "__main__":

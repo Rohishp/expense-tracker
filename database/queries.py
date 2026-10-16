@@ -496,7 +496,8 @@ def update_goal(
 def delete_goal(goal_id, user_id):
     """Delete a Goal owned by `user_id`. Return True if a row was deleted.
 
-    Rows in goal_dependencies that mention it go too (ON DELETE CASCADE).
+    Rows in goal_dependencies and top_ups that mention it go too
+    (ON DELETE CASCADE).
     """
     conn = get_db()
     try:
@@ -506,5 +507,175 @@ def delete_goal(goal_id, user_id):
         )
         conn.commit()
         return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def add_lump_sum(goal_id, user_id, amount):
+    """Add a Lump Sum to a Goal's Saved Amount. Return True if a row changed.
+
+    The check is in SQL too, so the Saved Amount can never pass the target.
+    """
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "UPDATE goals SET saved_amount = ROUND(saved_amount + ?, 2) "
+            "WHERE id = ? AND user_id = ? "
+            "AND ROUND(saved_amount + ?, 2) <= target_amount",
+            (amount, goal_id, user_id, amount),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def _amount_row_to_dict(row):
+    """A Top-up or Savings Pot amount row as a dict, with `amount` as a float."""
+    return {**dict(row), "amount": float(row["amount"])}
+
+
+def _count(table, user_id):
+    # `table` is one of two fixed names below, never user input.
+    conn = get_db()
+    try:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS count FROM {table} WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return row["count"]
+    finally:
+        conn.close()
+
+
+def count_top_ups(user_id):
+    """Return how many Top-ups `user_id` has."""
+    return _count("top_ups", user_id)
+
+
+def count_pot_amounts(user_id):
+    """Return how many Savings Pot amounts `user_id` has."""
+    return _count("savings_pot_amounts", user_id)
+
+
+def list_top_ups(user_id):
+    """Return the user's Top-ups as dicts, oldest first."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, goal_id, amount, start_date FROM top_ups "
+            "WHERE user_id = ? ORDER BY id",
+            (user_id,),
+        ).fetchall()
+        return [_amount_row_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_top_up(top_up_id, user_id):
+    """Return the Top-up with its Goal's name if it belongs to `user_id`."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT t.id, t.goal_id, t.amount, t.start_date, g.name AS goal_name "
+            "FROM top_ups t JOIN goals g ON g.id = t.goal_id "
+            "WHERE t.id = ? AND t.user_id = ?",
+            (top_up_id, user_id),
+        ).fetchone()
+        return None if row is None else _amount_row_to_dict(row)
+    finally:
+        conn.close()
+
+
+def delete_top_up(top_up_id, user_id):
+    """Delete a Top-up owned by `user_id`. Return True if a row was deleted."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM top_ups WHERE id = ? AND user_id = ?",
+            (top_up_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def list_pot_amounts(user_id):
+    """Return the user's Savings Pot amounts as dicts, oldest first."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, amount, start_date FROM savings_pot_amounts "
+            "WHERE user_id = ? ORDER BY id",
+            (user_id,),
+        ).fetchall()
+        return [_amount_row_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_pot_amount(pot_amount_id, user_id):
+    """Return the Savings Pot amount if it belongs to `user_id`, else None."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, amount, start_date FROM savings_pot_amounts "
+            "WHERE id = ? AND user_id = ?",
+            (pot_amount_id, user_id),
+        ).fetchone()
+        return None if row is None else _amount_row_to_dict(row)
+    finally:
+        conn.close()
+
+
+def delete_pot_amount(pot_amount_id, user_id):
+    """Delete a Savings Pot amount owned by `user_id`. True if a row was deleted."""
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM savings_pot_amounts WHERE id = ? AND user_id = ?",
+            (pot_amount_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def create_redirect(user_id, start_date, top_ups, pot_amount=None, still_fits=None):
+    """Save one redirect: Top-ups and an optional Savings Pot amount, together.
+
+    `top_ups` is a list of (goal_id, amount). Ownership is enforced in SQL:
+    a Top-up is only inserted for a Goal of `user_id`. The write lock is taken
+    first and `still_fits()` (if given) is called under it, so a second
+    redirect waits for this one and is then checked against it: the same
+    money can never be redirected twice. Returns how many Top-ups were saved,
+    or None (and saves nothing) if `still_fits()` is false or a Goal is gone.
+    """
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if still_fits is not None and not still_fits():
+            conn.rollback()
+            return None
+        inserted = 0
+        for goal_id, amount in top_ups:
+            cursor = conn.execute(
+                "INSERT INTO top_ups (user_id, goal_id, amount, start_date) "
+                "SELECT ?, id, ?, ? FROM goals WHERE id = ? AND user_id = ?",
+                (user_id, amount, start_date, goal_id, user_id),
+            )
+            inserted += cursor.rowcount
+        if inserted != len(top_ups):
+            conn.rollback()
+            return None
+        if pot_amount:
+            conn.execute(
+                "INSERT INTO savings_pot_amounts (user_id, amount, start_date) "
+                "VALUES (?, ?, ?)",
+                (user_id, pot_amount, start_date),
+            )
+        conn.commit()
+        return inserted
     finally:
         conn.close()
