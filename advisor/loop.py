@@ -77,7 +77,7 @@ def run_advisor(question, snapshot, call_model, today, max_steps=8):
             continue
 
         for call in calls:
-            result, is_final = dispatch(call["name"], call["arguments"], snapshot, today)
+            result, is_final = dispatch(call["name"], call["arguments"], snapshot, today, question)
             trace.append({"type": "tool", "step": step, "name": call["name"],
                           "arguments": call["arguments"], "result": result})
             if is_final:
