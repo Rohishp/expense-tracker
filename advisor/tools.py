@@ -69,7 +69,10 @@ TOOLS = [
                 "Run the Plan on a hypothetical copy with these changes applied. "
                 "Changes nothing. Returns the new Plan and what changed versus "
                 "the current Plan. Use it for every what-if; never calculate "
-                "Installments or dates yourself."
+                "Installments or dates yourself. Every call starts again from "
+                "the user's real data: changes from earlier calls are NOT kept, "
+                "so to try a different version of a Goal you are adding, send "
+                "its add_goal again with the new values."
             ),
             "parameters": {
                 "type": "object",
@@ -83,11 +86,13 @@ TOOLS = [
         "function": {
             "name": "final_answer",
             "description": (
-                "Finish. verdict: 'yes' if the request fits as asked, "
-                "'trade_off' if it only fits when something else changes, "
-                "'no' if no reasonable change makes it fit. proposed_changes "
-                "are shown to the user, who must confirm them before anything "
-                "is saved."
+                "Finish. verdict: 'yes' if it fits exactly as asked; "
+                "'trade_off' if it fits only when something changes (a later "
+                "Deadline or smaller amount for what was asked, another Goal, "
+                "or the Income); 'no' if it cannot fit even with the changes "
+                "the user allows. proposed_changes: the least disruptive "
+                "changes that work, or none. They are shown to the user, who "
+                "must confirm them before anything is saved."
             ),
             "parameters": {
                 "type": "object",
@@ -107,13 +112,19 @@ TOOLS = [
 
 
 def load_snapshot(user_id):
-    """Read the user's data once. The agent only ever sees this copy."""
+    """Read the user's data once. The agent only ever sees this copy.
+
+    Top-ups and Savings Pot amounts are included so the agent's Plan matches
+    the /plan page (step 14).
+    """
     from database import queries  # lazy: keeps the tools testable without a DB
 
     return {
         "income": queries.get_income(user_id),
         "obligations": queries.list_obligations(user_id),
         "goals": queries.list_goals(user_id),
+        "top_ups": queries.list_top_ups(user_id),
+        "pot_amounts": queries.list_pot_amounts(user_id),
     }
 
 
@@ -121,7 +132,15 @@ def _find(items, item_id, label):
     for item in items:
         if item["id"] == item_id:
             return item
-    raise ToolError(f"No {label} with id {item_id}.")
+    message = f"No {label} with id {item_id}."
+    if label == "Goal":
+        # The commonest agent mistake: editing a Goal added in an earlier call.
+        message += (
+            " Each simulate_plan call starts from the user's real data, so a Goal"
+            " added in an earlier call does not exist here. Send its add_goal"
+            " again in this call, with the values you want."
+        )
+    raise ToolError(message)
 
 
 def _positive(value, field, allow_zero=False):
@@ -202,7 +221,14 @@ def apply_changes(snapshot, changes, today):
 def run_plan(snapshot, today):
     if snapshot["income"] is None:
         raise ToolError("Income is not set. Add a set_income change to simulate.")
-    return planner.plan(snapshot["income"], snapshot["obligations"], snapshot["goals"], today)
+    return planner.plan(
+        snapshot["income"],
+        snapshot["obligations"],
+        snapshot["goals"],
+        today,
+        snapshot.get("top_ups", ()),
+        snapshot.get("pot_amounts", ()),
+    )
 
 
 def _compact(plan):
@@ -213,6 +239,11 @@ def _compact(plan):
         "available": plan["available"],
         "surplus": plan["surplus"],
         "overcommitted": plan["overcommitted"],
+        "top_ups": [
+            {k: t[k] for k in ("goal_name", "amount", "start_date", "status")}
+            for t in plan["top_ups"]
+        ],
+        "savings_pot": plan["savings_pot"]["funded"],
         "goals": [
             {
                 k: item[k]
@@ -264,12 +295,21 @@ def dispatch(name, raw_arguments, snapshot, today):
                 result["diff"] = diff_plans(before, after)
             return result, False
         if name == "final_answer":
+            # Models sometimes leave out a field the schema requires; a missing
+            # proposal means "no changes", a missing summary goes back to them.
+            proposed = args.get("proposed_changes") or []
+            if not isinstance(proposed, list):
+                raise ToolError("proposed_changes must be a list.")
             # Reject proposals that would not even validate, so the user
             # is never shown a change the app would refuse to save.
-            apply_changes(snapshot, args.get("proposed_changes", []), today)
+            apply_changes(snapshot, proposed, today)
             if args.get("verdict") not in ("yes", "trade_off", "no"):
                 raise ToolError("verdict must be yes, trade_off or no.")
-            return args, True
+            summary = args.get("summary")
+            if not isinstance(summary, str) or not summary.strip():
+                raise ToolError("summary is required: explain the answer to the user.")
+            return {"verdict": args["verdict"], "summary": summary,
+                    "proposed_changes": proposed}, True
         return {"error": f"Unknown tool {name!r}."}, False
     except ToolError as exc:
         return {"error": str(exc)}, False

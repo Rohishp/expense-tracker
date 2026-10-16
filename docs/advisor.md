@@ -23,10 +23,18 @@ Laptop become an Unreachable Goal, try a later Deadline, compare, then answer.
 |---|---|
 | `advisor/tools.py` | 3 tools: `get_finances`, `simulate_plan`, `final_answer`. No writes. Validation errors go back to the model so it can retry |
 | `advisor/loop.py` | The loop: model picks a tool, sees the result, repeats; `max_steps=8`; every step traced |
-| `advisor/openai_client.py` | OpenAI Chat Completions adapter, `temperature=0` |
-| `advisor/apply.py` | The only write path, run after the user confirms; re-validates against fresh data |
-| `advisor/evals.py` | Scenarios with planner-checkable answers; scores verdict, outcome, mentions, tool calls |
-| `tests/test_advisor.py` | Loop tests with a scripted fake model, plus checks that every eval answer holds in the planner |
+| `advisor/openai_client.py` | OpenAI Chat Completions adapter, `temperature=0` (left out for `gpt-5*` models, which only accept the default) |
+| `advisor/apply.py` | The only write path, run after the user confirms; re-validates against fresh data and keeps a Goal's Dependencies |
+| `advisor/evals.py` | 20 tasks over 8 fixtures (Dependencies, Saved Amounts, over-committed, no Income, Top-ups, injection, off-topic). Code-only graders: finished, verdict, outcome, collateral, warned, grounded, wording. Reports pass^1 and pass^k over `--runs`; `--out` saves every trace as JSONL |
+| `tests/test_advisor.py` | Loop tests with a scripted fake model; every task's reference answer passes every grader; the graders catch the failures seen in real traces |
+
+## Running the evals
+
+```bash
+python -m advisor.evals --model gpt-5-nano --runs 3 --workers 6 --out traces.jsonl
+```
+
+Needs `OPENAI_API_KEY` (read from `.env`). It calls the real model, so it costs money and takes minutes; `pytest` never runs it. Read the traces of failed runs before changing the prompt: a failure can be the agent's or the task's.
 
 ## Safety by structure, not by prompt
 
@@ -72,8 +80,12 @@ few changes; move to a server-side store if proposals grow.
 
 ## Not covered yet
 
-- **Dependency** (GLOSSARY) is not in the schema or planner yet. Once step 13
-  adds it to `planner.plan()`, the agent picks it up through `simulate_plan`
-  with no loop changes.
+- **Dependencies** are honoured through `planner.plan()` (step 13), but the
+  agent has no change op to add or remove one.
+- **Top-ups and the Savings Pot** (step 14) are in the snapshot, so the
+  agent's Plan matches `/plan`, but it cannot propose them.
+- `simulate_plan` starts from the real data on every call; the tool
+  description and the "No Goal with id" error say so, because models
+  otherwise try to edit a Goal they added in an earlier call.
 - Traces are returned, not persisted. Log them per request to show what the
   agent did.

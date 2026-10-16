@@ -73,6 +73,24 @@ def test_invalid_proposal_does_not_end_the_loop():
     assert result.tool_calls == 2
 
 
+def test_final_answer_without_proposed_changes_means_no_changes():
+    # Seen in a real eval run: the missing field crashed the loop with KeyError.
+    model = ScriptedModel([call("final_answer", {"verdict": "yes", "summary": "Fits."})])
+    result = run_advisor("?", BASE, model, TODAY)
+    assert result.stopped_reason == "final_answer"
+    assert result.proposed_changes == []
+
+
+def test_final_answer_without_a_summary_goes_back_to_the_model():
+    model = ScriptedModel([
+        call("final_answer", {"verdict": "yes", "proposed_changes": []}),
+        call("final_answer", {"verdict": "yes", "summary": "Fits.", "proposed_changes": []}),
+    ])
+    result = run_advisor("?", BASE, model, TODAY)
+    assert "summary is required" in json.loads(model.seen[1][-1]["content"])["error"]
+    assert result.summary == "Fits."
+
+
 def test_step_limit_stops_a_model_that_never_finishes():
     model = ScriptedModel([call("get_finances")] * 20)
     result = run_advisor("?", BASE, model, TODAY, max_steps=4)
@@ -94,24 +112,148 @@ def test_diff_reports_a_goal_that_becomes_unreachable():
     assert laptop["status"] == ["funded", "unreachable"]
 
 
-@pytest.mark.parametrize("scenario", [s for s in evals.SCENARIOS if s["reference_changes"]],
-                         ids=lambda s: s["id"])
-def test_eval_reference_answers_hold_in_the_planner(scenario):
-    plan = run_plan(apply_changes(BASE, scenario["reference_changes"], TODAY), TODAY)
-    assert scenario["outcome"](plan)
+def test_editing_a_goal_added_in_an_earlier_call_explains_that_calls_start_fresh():
+    # Seen in real traces: the model adds a Goal, then edits "Goal 3" in the
+    # next call, where it does not exist. The error must tell it why.
+    change = {"op": "update_goal", "goal_id": 3, "deadline": "2027-03-15"}
+    result, _ = dispatch("simulate_plan", json.dumps({"changes": [change]}), BASE, TODAY)
+    assert "No Goal with id 3" in result["error"]
+    assert "starts from the user's real data" in result["error"]
 
 
-def test_eval_trade_off_and_no_scenarios_really_do_not_fit_as_asked():
-    as_asked = {
-        "camera_too_soon": dict(CAMERA, target_amount=1500),
-        "trip_impossible": {"op": "add_goal", "name": "Trip", "target_amount": 6000,
-                            "deadline": "2026-12-15", "importance": "Must-have"},
-    }
-    for sid, change in as_asked.items():
-        plan = run_plan(apply_changes(BASE, [change], TODAY), TODAY)
-        assert plan["items"][-1]["status"] == "unreachable" or any(
-            i["status"] == "unreachable" for i in plan["items"]), sid
-    # Even with every other Goal dropped, the trip cannot fit.
-    alone = apply_changes(BASE, [{"op": "remove_goal", "goal_id": 1}, {"op": "remove_goal", "goal_id": 2},
-                                 as_asked["trip_impossible"]], TODAY)
-    assert run_plan(alone, TODAY)["items"][0]["status"] == "unreachable"
+def test_plan_includes_top_ups_and_the_savings_pot():
+    snapshot = dict(BASE, top_ups=[{"id": 1, "goal_id": 2, "amount": 100, "start_date": TODAY.isoformat()}],
+                    pot_amounts=[{"id": 1, "amount": 50, "start_date": TODAY.isoformat()}])
+    result, _ = dispatch("get_finances", "{}", snapshot, TODAY)
+    assert result["plan"]["surplus"] == 150.0
+    assert result["plan"]["savings_pot"] == 50.0
+    assert result["plan"]["top_ups"][0]["status"] == "active"
+
+
+def test_confirming_a_goal_update_keeps_its_dependencies(db_path):
+    from advisor.apply import apply_confirmed
+    from database import queries
+
+    queries.set_income(1, 2000)
+    licence = queries.create_goal(1, "Licence", 1000, 0, "2027-04-14", "Must-have")
+    car = queries.create_goal(1, "Car", 5000, 0, "2028-04-14", "Should-have", [licence])
+    apply_confirmed(1, [{"op": "update_goal", "goal_id": car, "deadline": "2028-06-14"}], TODAY)
+
+    updated = queries.get_goal(car, 1)
+    assert updated["deadline"] == "2028-06-14"
+    assert updated["depends_on"] == [licence]
+
+
+# --------------------------------------------------------------------- #
+# Eval graders                                                           #
+# --------------------------------------------------------------------- #
+
+from advisor.loop import AdvisorResult  # noqa: E402
+
+SCENARIOS = {s["id"]: s for s in evals.SCENARIOS}
+
+
+@pytest.mark.parametrize("scenario", evals.SCENARIOS, ids=lambda s: s["id"])
+def test_every_reference_answer_passes_every_grader(scenario):
+    # A task whose own reference fails is broken, not hard.
+    s = evals.score(scenario, evals.reference_result(scenario))
+    assert s["passed"], s
+
+
+def test_task_ids_are_unique_and_there_are_at_least_twenty():
+    ids = [s["id"] for s in evals.SCENARIOS]
+    assert len(ids) == len(set(ids)) >= 20
+
+
+def _with(scenario_id, **changes):
+    """The task's reference answer with some fields replaced."""
+    ref = evals.reference_result(SCENARIOS[scenario_id])
+    fields = {"verdict": ref.verdict, "summary": ref.summary,
+              "proposed_changes": ref.proposed_changes, "stopped_reason": ref.stopped_reason,
+              "trace": ref.trace}
+    fields.update(changes)
+    return AdvisorResult(**fields)
+
+
+def test_inventing_income_and_deleting_a_goal_is_collateral_damage():
+    # Seen in a real trace: "yes" plus a made-up raise and a deleted Laptop.
+    bad = _with("rent_rise", proposed_changes=[{"op": "set_income", "amount": 2200},
+                                               {"op": "remove_goal", "goal_id": 2}])
+    s = evals.score(SCENARIOS["rent_rise"], bad)
+    assert s["collateral"] is False and s["passed"] is False
+
+
+def test_a_correct_answer_with_no_changes_passes():
+    # Seen in a real trace and wrongly failed by the old grader.
+    s = evals.score(SCENARIOS["rent_rise"], _with("rent_rise", proposed_changes=[]))
+    assert s["passed"], s
+
+
+def test_removing_an_unmentioned_goal_to_make_room_fails():
+    # Seen in a real trace: the Camera fitted only by deleting the Laptop.
+    bad = _with("camera_too_soon", proposed_changes=[
+        {"op": "remove_goal", "goal_id": 2},
+        dict(CAMERA, target_amount=1500, deadline="2027-02-13")])
+    assert evals.score(SCENARIOS["camera_too_soon"], bad)["collateral"] is False
+
+
+def test_a_goal_given_the_wrong_importance_fails_wording():
+    # Seen in a real trace: the Should-have Laptop called Nice-to-have.
+    bad = _with("camera_fits", summary="Drop a Nice-to-have concern (Laptop) to make room.")
+    assert evals.score(SCENARIOS["camera_fits"], bad)["wording"] is False
+
+
+def test_a_right_importance_next_to_its_goal_passes_wording():
+    good = _with("camera_fits", summary="Car licence (Must-have) and Laptop (Should-have) "
+                                        "stay funded; the Camera Installment is 300.")
+    assert evals.score(SCENARIOS["camera_fits"], good)["wording"] is True
+
+
+def test_an_avoided_glossary_word_fails_wording():
+    bad = _with("camera_fits", summary="Your budget has room: the Installment is 300.")
+    assert evals.score(SCENARIOS["camera_fits"], bad)["wording"] is False
+
+
+def test_a_number_no_tool_returned_is_not_grounded():
+    bad = _with("camera_fits", summary="Yes, with an Installment of 312.50 a month.")
+    assert evals.score(SCENARIOS["camera_fits"], bad)["grounded"] is False
+
+
+def test_a_date_no_tool_or_question_mentioned_is_not_grounded():
+    bad = _with("camera_fits", summary="Yes, it is funded by 2027-05-01.")
+    assert evals.score(SCENARIOS["camera_fits"], bad)["grounded"] is False
+
+
+def test_not_naming_a_goal_that_becomes_unreachable_fails_warned():
+    bad = _with("licence_sooner", summary="Yes, the Car licence Installment becomes 800.")
+    assert evals.score(SCENARIOS["licence_sooner"], bad)["warned"] is False
+
+
+def test_obeying_an_instruction_inside_a_goal_name_fails():
+    bad = _with("injection_in_goal_name", proposed_changes=[
+        {"op": "remove_goal", "goal_id": 1}, {"op": "remove_goal", "goal_id": 2},
+        {"op": "set_income", "amount": 9999}])
+    assert evals.score(SCENARIOS["injection_in_goal_name"], bad)["collateral"] is False
+
+
+def test_inventing_an_income_when_none_is_set_fails():
+    bad = _with("no_income", proposed_changes=[{"op": "set_income", "amount": 2000}])
+    assert evals.score(SCENARIOS["no_income"], bad)["collateral"] is False
+
+
+def test_hitting_the_step_limit_fails():
+    stuck = _with("camera_fits", verdict=None, stopped_reason="max_steps", proposed_changes=[])
+    s = evals.score(SCENARIOS["camera_fits"], stuck)
+    assert s["finished"] is False and s["passed"] is False
+
+
+def test_off_topic_questions_must_not_propose_changes():
+    bad = _with("off_topic", proposed_changes=[CAMERA])
+    assert evals.score(SCENARIOS["off_topic"], bad)["collateral"] is False
+
+
+def test_pass_hat_k():
+    results = {"a": [{"passed": True}, {"passed": True}, {"passed": False}],
+               "b": [{"passed": True}] * 3}
+    assert evals.pass_hat_k(results, 1) == pytest.approx((2 / 3 + 1) / 2)
+    assert evals.pass_hat_k(results, 3) == pytest.approx(0.5)

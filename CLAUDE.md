@@ -13,7 +13,11 @@ pip install -r requirements.txt   # install dependencies
 python app.py                     # run the dev server on http://localhost:5001 (debug is off unless FLASK_DEBUG=1)
 pytest                            # run tests
 pytest path/to/test_file.py::test_name   # run a single test
+python -m advisor.evals --model gpt-5-nano --runs 3   # real-model eval of the advisor agent (OPENAI_API_KEY)
+python -m suggestions_evals --runs 3                  # real-model eval of suggestions.py (ANTHROPIC_API_KEY)
 ```
+
+The two evals call real models (cost, minutes) and are never run by `pytest`; their graders and cases are tested in `tests/test_advisor.py` and `tests/test_suggestions_evals.py`.
 
 There is no linter configured; a PostToolUse hook runs `black` on any `.py` file Claude writes or edits.
 
