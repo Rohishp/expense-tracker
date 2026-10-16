@@ -2,15 +2,15 @@
 
 ## Project overview
 
-"Spendly" is a Flask-based personal expense tracker built incrementally, one numbered step at a time. Each step has a spec in `.claude/specs/` (`01-database-setup.md` … `09-delete-expense.md`); treat the spec as the source of truth for that step. Steps 1–9 are implemented: database setup, registration, login/logout, profile page wired to real data with a date filter, and add/edit/delete expense.
+"Spendly" is a Flask-based personal expense tracker built incrementally, one numbered step at a time. Each step has a spec in `.claude/specs/` (`01-database-setup.md` … `13-ai-suggestions.md`); treat the spec as the source of truth for that step. Steps 1–13 are implemented: database setup, registration, login/logout, profile page wired to real data with a date filter, add/edit/delete expense, and the savings plan.
 
-The next feature is a **savings plan** (Income, Obligations, Goals, and a computed Plan), split into steps 10–13. Domain terms are defined in `GLOSSARY.md`; use those words exactly. Decisions live in `docs/adr/`.
+The **savings plan** (steps 10–13) is Income, Obligations, Goals (with Importance and Dependencies), and a computed Plan; an LLM may only suggest a Goal's Importance and Dependencies, and the user confirms them (ADR 0001). Domain terms are defined in `GLOSSARY.md`; use those words exactly. Decisions live in `docs/adr/`.
 
 ## Commands
 
 ```bash
 pip install -r requirements.txt   # install dependencies
-python app.py                     # run the dev server on http://localhost:5001 (debug=True)
+python app.py                     # run the dev server on http://localhost:5001 (debug is off unless FLASK_DEBUG=1)
 pytest                            # run tests
 pytest path/to/test_file.py::test_name   # run a single test
 ```
@@ -21,9 +21,11 @@ Slash commands in `.claude/commands/`: `/create-spec`, `/test-feature`, `/code-r
 
 ## Architecture
 
-- **`app.py`** — single-file Flask app, no blueprints. Routes: `/`, `/register`, `/login`, `/logout`, `/terms`, `/privacy`, `/profile` (summary stats, recent transactions, category breakdown, date-range filter), `/analytics` (template only), `/expenses/add`, `/expenses/<id>/edit`, `/expenses/<id>/delete`. Protected views use `@login_required` (checks `session["user_id"]`). POST views are wrapped in `@csrf_protect`; forms include `csrf_token()`. Tests turn CSRF off with `app.config["CSRF_ENABLED"] = False`.
-- **`database/db.py`** — `get_db()` (SQLite connection, `row_factory = sqlite3.Row`, `PRAGMA foreign_keys = ON` reissued per connection), `init_db()` (`CREATE TABLE IF NOT EXISTS` for `users` and `expenses`), `seed_db()` (one demo user, 8 sample expenses), and the `CATEGORIES` list. No ORM — raw `sqlite3`, parameterised queries only.
-- **`database/queries.py`** — all SQL for expenses and the profile page (`create_expense`, `get_expense`, `update_expense`, `delete_expense`, `get_user_by_id`, `get_summary_stats`, `get_recent_transactions`, `get_category_breakdown`). Every expense query filters by `user_id` so users only touch their own rows.
+- **`app.py`** — single-file Flask app, no blueprints. Routes: `/`, `/register`, `/login`, `/logout`, `/terms`, `/privacy`, `/profile` (summary stats, recent transactions, category breakdown, date-range filter), `/analytics` (template only), `/expenses/add`, `/expenses/<id>/edit`, `/expenses/<id>/delete`, `/income`, `/obligations` (+ `/add`, `/<id>/edit`, `/<id>/delete`), `/goals` (+ `/add`, `/suggest`, `/<id>/edit`, `/<id>/delete`) and `/plan` (read-only). Protected views use `@login_required` (checks `session["user_id"]`). POST views are wrapped in `@csrf_protect`; forms include `csrf_token()`. Tests turn CSRF off with `app.config["CSRF_ENABLED"] = False`.
+- **`database/db.py`** — `get_db()` (SQLite connection, `row_factory = sqlite3.Row`, `PRAGMA foreign_keys = ON` reissued per connection), `init_db()` (`CREATE TABLE IF NOT EXISTS` for `users`, `expenses`, `incomes`, `obligations`, `goals` and `goal_dependencies`), `seed_db()` (one demo user, 8 sample expenses), and the `CATEGORIES` and `IMPORTANCE_LEVELS` lists. No ORM — raw `sqlite3`, parameterised queries only.
+- **`database/queries.py`** — all SQL for expenses, the profile page, Income, Obligations and Goals (`create_expense` … `get_category_breakdown`, `get_income`/`set_income`, `*_obligation`, `*_goal`, `get_dependency_edges`). Every query filters by `user_id` so users only touch their own rows.
+- **`planner.py`** — the Plan: pure functions in integer cents (no Flask, no database, `today` passed in). Funds Goals by Importance then Deadline, after their Dependencies; Unreachable Goals take nothing.
+- **`suggestions.py`** — the only LLM code. `suggest()` asks the Anthropic API for a Goal's Importance and Dependencies, validates the reply as untrusted input and returns `None` (never raises) when unavailable. Reads `ANTHROPIC_API_KEY` and optional `SPENDLY_LLM_MODEL` from the environment; tests replace `suggestions._call_llm` and never touch the network.
 - **`templates/`** — Jinja2 templates extending `base.html` (shared navbar/footer; blocks `title`, `head`, `content`, `scripts`). Each page has its own CSS in `static/css/` loaded via `{% block head %}`, layered on the shared `style.css`.
 - **`static/css/style.css`** — shared design tokens (CSS custom properties). Use the variables; never hardcode hex values.
 - **`static/js/main.js`** — shared JS (currently empty); page-specific JS is inlined in that page's `{% block scripts %}`.

@@ -24,4 +24,5 @@ def app(db_path):
 
     flask_app.config["TESTING"] = True
     flask_app.config["CSRF_ENABLED"] = False
+    flask_app.config["SUGGEST_COOLDOWN_SECONDS"] = 0
     yield flask_app

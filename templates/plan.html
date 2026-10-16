@@ -63,7 +63,9 @@
                         {% else %}
                         <div class="plan-warning">
                             <strong>Unreachable Goal</strong>
-                            {% if g.earliest_date %}
+                            {% if g.blocked_by %}
+                            <span>Waiting for {{ g.blocked_by }}</span>
+                            {% elif g.earliest_date %}
                             <span>Earliest date it could be met: {{ g.earliest_date }}</span>
                             {% else %}
                             <span>Not reachable with your current Income</span>

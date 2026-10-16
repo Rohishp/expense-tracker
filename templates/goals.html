@@ -31,7 +31,12 @@
             <tbody>
                 {% for g in goals %}
                 <tr>
-                    <td>{{ g.name }}</td>
+                    <td>
+                        {{ g.name }}
+                        {% if g.depends_on_names %}
+                        <div class="goal-depends">Depends on: {{ g.depends_on_names|join(', ') }}</div>
+                        {% endif %}
+                    </td>
                     <td><span class="importance-badge importance-{{ g.importance|lower }}">{{ g.importance }}</span></td>
                     <td>{{ g.deadline }}</td>
                     <td class="col-amount">€{{ g.saved_amount|eur }}</td>
