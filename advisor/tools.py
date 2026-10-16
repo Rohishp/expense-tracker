@@ -68,7 +68,8 @@ TOOLS = [
             "description": (
                 "Run the Plan on a hypothetical copy with these changes applied. "
                 "Changes nothing. Returns the new Plan and what changed versus "
-                "the current Plan. Use it for every what-if; never calculate "
+                "the current Plan (Goals, Top-ups and the Surplus). Use it for "
+                "every what-if; never calculate "
                 "Installments or dates yourself. Every call starts again from "
                 "the user's real data: changes from earlier calls are NOT kept, "
                 "so to try a different version of a Goal you are adding, send "
@@ -89,7 +90,8 @@ TOOLS = [
                 "Finish. verdict: 'yes' if it fits exactly as asked; "
                 "'trade_off' if it fits only when something changes (a later "
                 "Deadline or smaller amount for what was asked, another Goal, "
-                "or the Income); 'no' if it cannot fit even with the changes "
+                "or the Income) or when it pauses a Top-up; 'no' if it cannot "
+                "fit even with the changes "
                 "the user allows. proposed_changes: the least disruptive "
                 "changes that work, or none. They are shown to the user, who "
                 "must confirm them before anything is saved."
@@ -256,7 +258,8 @@ def _compact(plan):
 
 
 def diff_plans(before, after):
-    """What a change did: every Goal whose status or Installment moved."""
+    """What a change did: every Goal whose status or Installment moved, and
+    every Top-up whose status moved (a Top-up on a removed Goal is removed)."""
     old = {i["id"]: i for i in before["items"]}
     changed = []
     for item in after["items"]:
@@ -270,7 +273,18 @@ def diff_plans(before, after):
                             "earliest_date": item["earliest_date"]})
     for prev in old.values():
         changed.append({"goal": prev["name"], "change": "removed"})
-    return {"goals_changed": changed, "surplus": [before["surplus"], after["surplus"]]}
+
+    new_top_ups = {t["id"]: t for t in after["top_ups"]}
+    top_ups_changed = []
+    for prev in before["top_ups"]:
+        top_up = new_top_ups.get(prev["id"])
+        entry = {"goal": prev["goal_name"], "amount": prev["amount"]}
+        if top_up is None:
+            top_ups_changed.append(dict(entry, change="removed"))
+        elif top_up["status"] != prev["status"]:
+            top_ups_changed.append(dict(entry, status=[prev["status"], top_up["status"]]))
+    return {"goals_changed": changed, "top_ups_changed": top_ups_changed,
+            "surplus": [before["surplus"], after["surplus"]]}
 
 
 # ---------------------------------------------------------------- dispatch

@@ -21,11 +21,12 @@ Rules:
   and quote only numbers it returned.
 - Try more than one option when the first does not fit (a later Deadline,
   a different Importance, dropping a Nice-to-have Goal) and compare them.
-- Always say which existing Goals a change would make Unreachable.
+- Always say which existing Goals a change would make Unreachable and which
+  Top-ups it pauses.
 - You cannot save anything. Put the changes you recommend in
   final_answer.proposed_changes; the user confirms them.
 - Use these words exactly: Income, Obligation, Goal, Deadline, Importance,
-  Installment, Surplus, Unreachable Goal, Plan.
+  Installment, Surplus, Unreachable Goal, Top-up, Plan.
 - Finish by calling final_answer exactly once."""
 
 

@@ -112,6 +112,32 @@ def test_diff_reports_a_goal_that_becomes_unreachable():
     assert laptop["status"] == ["funded", "unreachable"]
 
 
+TOP_UPS = evals.FIXTURES["top_ups"]  # an active 300 Top-up on the Car licence, Surplus 0
+BIKE = {"op": "add_goal", "name": "Bike", "target_amount": 600,
+        "deadline": "2027-02-13", "importance": "Nice-to-have"}
+
+
+def _top_ups_changed(snapshot, changes):
+    result, _ = dispatch("simulate_plan", json.dumps({"changes": changes}), snapshot, TODAY)
+    return result["diff"]["top_ups_changed"]
+
+
+def test_diff_reports_a_top_up_that_gets_paused():
+    # Seen in real traces: the model said "yes" and never mentioned the
+    # paused Top-up, which the diff did not report.
+    assert _top_ups_changed(TOP_UPS, [BIKE]) == [
+        {"goal": "Car licence", "amount": 300.0, "status": ["active", "paused"]}]
+
+
+def test_diff_reports_no_top_up_change_when_none_moves():
+    assert _top_ups_changed(TOP_UPS, [{"op": "update_goal", "goal_id": 2, "deadline": "2027-12-11"}]) == []
+
+
+def test_diff_reports_a_top_up_removed_with_its_goal():
+    assert _top_ups_changed(TOP_UPS, [{"op": "remove_goal", "goal_id": 1}]) == [
+        {"goal": "Car licence", "amount": 300.0, "change": "removed"}]
+
+
 def test_editing_a_goal_added_in_an_earlier_call_explains_that_calls_start_fresh():
     # Seen in real traces: the model adds a Goal, then edits "Goal 3" in the
     # next call, where it does not exist. The error must tell it why.
