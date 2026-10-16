@@ -25,6 +25,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from math import comb
 
+from advisor.tracing import run_extra
+
 MUST, SHOULD, NICE = "Must-have", "Should-have", "Nice-to-have"
 
 
@@ -207,8 +209,10 @@ def main():
         case, run = task
         goal = case["goal"]
         started = time.perf_counter()
-        suggestion = suggestions.suggest(goal["name"], goal["target_amount"],
-                                         goal["deadline"], case["others"])
+        suggestion = suggestions.suggest(
+            goal["name"], goal["target_amount"], goal["deadline"], case["others"],
+            **run_extra({"case": case["id"], "run": run,
+                         "model": os.environ.get("SPENDLY_LLM_MODEL", "default")}, ["eval"]))
         return case, run, suggestion, time.perf_counter() - started
 
     results, latencies = {}, []

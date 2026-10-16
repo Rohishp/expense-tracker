@@ -9,6 +9,8 @@ import json
 import logging
 import os
 
+from advisor.tracing import traceable, wrap_client
+
 from database.db import IMPORTANCE_LEVELS
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
@@ -53,8 +55,8 @@ def _call_llm(prompt):
     # Imported here so the app runs even if the package is not installed.
     import anthropic
 
-    client = anthropic.Anthropic(
-        api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=0
+    client = wrap_client(  # no-op unless tracing is on
+        anthropic.Anthropic(api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=0)
     )
     message = client.messages.create(
         model=os.environ.get("SPENDLY_LLM_MODEL", DEFAULT_MODEL),
@@ -89,6 +91,7 @@ def _parse(reply, allowed_ids):
     return {"importance": data["importance"], "depends_on": depends_on}
 
 
+@traceable(name="suggest_goal", run_type="chain")
 def suggest(name, target_amount, deadline, other_goals):
     """Return {"importance", "depends_on"} for a Goal, or None if unavailable."""
     try:

@@ -19,6 +19,8 @@ python -m suggestions_evals --runs 3                  # real-model eval of sugge
 
 The two evals call real models (cost, minutes) and are never run by `pytest`; their graders and cases are tested in `tests/test_advisor.py` and `tests/test_suggestions_evals.py`.
 
+Tracing: set `LANGSMITH_TRACING=true` in `.env` to send advisor and suggestion runs to LangSmith (`advisor/tracing.py`; off in tests and never set on Railway). The Claude Code workflow is traced separately via the LangSmith plugin. Setup in `docs/observability.md`.
+
 There is no linter configured; a PostToolUse hook runs `black` on any `.py` file Claude writes or edits.
 
 Slash commands in `.claude/commands/`: `/create-spec`, `/test-feature`, `/code-review-feature`, `/ship-feature`, `/seed-user`, `/seed-expense`. Subagents in `.claude/agents/`: `spendly-test-writer`, `spendly-test-runner`, `spendly-security-reviewer`, `spendly-quality-reviewer`.
