@@ -4,6 +4,7 @@ import math
 import os
 import secrets
 import sqlite3
+import time
 from datetime import date, datetime, timedelta
 
 from flask import (
@@ -19,6 +20,7 @@ from flask import (
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import planner
+import suggestions
 from database import queries
 from database.db import (
     CATEGORIES,
@@ -36,6 +38,10 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-producti
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 # Tests turn this off so they can post forms without fetching a token first.
 app.config["CSRF_ENABLED"] = True
+# Forms are small; this stops huge bodies reaching the paid LLM call.
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
+# Minimum seconds between Suggest clicks per session (tests set it to 0).
+app.config["SUGGEST_COOLDOWN_SECONDS"] = 3
 
 with app.app_context():
     init_db()
@@ -610,7 +616,63 @@ def _validate_deadline(raw):
     return deadline, None
 
 
-def _validate_goal_form(form):
+def _int_list(values):
+    """Keep the values that are whole numbers, as ints.
+
+    Used only to re-tick the Dependency boxes after a failed or suggested
+    submit; saving goes through the strict `_validate_dependencies`.
+    """
+    result = []
+    for value in values:
+        try:
+            result.append(int(value))
+        except ValueError:
+            pass
+    return result
+
+
+def _other_goals(user_id, goal_id=None):
+    """The user's Goals, minus the one being edited (it cannot depend on itself)."""
+    return [g for g in queries.list_goals(user_id) if g["id"] != goal_id]
+
+
+def _creates_cycle(goal_id, new_dependencies, edges):
+    """True if `goal_id` depending on `new_dependencies` would make a loop."""
+    needs = {}
+    for dependent, prerequisite in edges:
+        if dependent != goal_id:
+            needs.setdefault(dependent, []).append(prerequisite)
+    seen = set()
+    stack = list(new_dependencies)
+    while stack:
+        current = stack.pop()
+        if current == goal_id:
+            return True
+        if current not in seen:
+            seen.add(current)
+            stack.extend(needs.get(current, ()))
+    return False
+
+
+def _validate_dependencies(raw_ids, user_id, goal_id=None):
+    """Return (ids, error) for the Dependencies chosen on the Goal form."""
+    try:
+        ids = list(dict.fromkeys(int(raw) for raw in raw_ids))
+    except ValueError:
+        return None, "Please choose valid Dependencies."
+    if goal_id is not None and goal_id in ids:
+        return None, "A Goal cannot depend on itself."
+    own_ids = {g["id"] for g in queries.list_goals(user_id)}
+    if any(i not in own_ids for i in ids):
+        return None, "Please choose valid Dependencies."
+    if goal_id is not None and _creates_cycle(
+        goal_id, ids, queries.get_dependency_edges(user_id)
+    ):
+        return None, "Those Dependencies would make a loop."
+    return ids, None
+
+
+def _validate_goal_form(form, user_id, goal_id=None):
     """Return (clean_values, error); keys match `queries.create_goal`."""
     name, error = _validate_name(form.get("name", ""))
     if error:
@@ -638,24 +700,38 @@ def _validate_goal_form(form):
     if importance not in IMPORTANCE_LEVELS:
         return None, "Please choose a valid Importance."
 
+    depends_on, error = _validate_dependencies(
+        form.getlist("depends_on"), user_id, goal_id
+    )
+    if error:
+        return None, error
+
     return {
         "name": name,
         "target_amount": target,
         "saved_amount": saved,
         "deadline": deadline,
         "importance": importance,
+        "depends_on": depends_on,
     }, None
 
 
-def _render_goal_form(form, error=None, goal_id=None):
+def _render_goal_form(
+    form, error=None, goal_id=None, selected=(), notice=None, others=None
+):
     # `form` is a dict (add, or edit prefill) or request.form; the template
     # only calls .get() on it, so either works.
+    if others is None:
+        others = _other_goals(session["user_id"], goal_id)
     return render_template(
         "goal_form.html",
         error=error,
+        notice=notice,
         form=form,
         goal_id=goal_id,
         editing=goal_id is not None,
+        other_goals=others,
+        selected_dependencies=list(selected),
         importance_levels=IMPORTANCE_LEVELS,
         max_name_length=MAX_NAME_LENGTH,
         min_deadline=(date.today() + timedelta(days=1)).isoformat(),
@@ -665,9 +741,11 @@ def _render_goal_form(form, error=None, goal_id=None):
 @app.route("/goals")
 @login_required
 def goals():
-    return render_template(
-        "goals.html", goals=queries.list_goals(session["user_id"])
-    )
+    items = queries.list_goals(session["user_id"])
+    names = {g["id"]: g["name"] for g in items}
+    for g in items:
+        g["depends_on_names"] = [names[d] for d in g["depends_on"] if d in names]
+    return render_template("goals.html", goals=items)
 
 
 @app.route("/goals/add", methods=["GET", "POST"])
@@ -675,11 +753,13 @@ def goals():
 @csrf_protect
 def add_goal():
     form = {"importance": "Should-have"}
+    selected = []
     error = None
 
     if request.method == "POST":
         form = request.form
-        clean, error = _validate_goal_form(form)
+        selected = _int_list(form.getlist("depends_on"))
+        clean, error = _validate_goal_form(form, session["user_id"])
         if not error and queries.count_goals(session["user_id"]) >= MAX_GOALS:
             error = f"You can have at most {MAX_GOALS} Goals."
         if not error:
@@ -687,7 +767,7 @@ def add_goal():
             flash("Goal added.", "success")
             return redirect(url_for("goals"))
 
-    return _render_goal_form(form, error)
+    return _render_goal_form(form, error, selected=selected)
 
 
 @app.route("/goals/<int:id>/edit", methods=["GET", "POST"])
@@ -700,11 +780,13 @@ def edit_goal(id):
         abort(404)
 
     form = goal
+    selected = goal["depends_on"]
     error = None
 
     if request.method == "POST":
         form = request.form
-        clean, error = _validate_goal_form(form)
+        selected = _int_list(form.getlist("depends_on"))
+        clean, error = _validate_goal_form(form, session["user_id"], goal_id=id)
         if not error:
             # False means the row vanished since the read above.
             if not queries.update_goal(id, session["user_id"], **clean):
@@ -712,7 +794,83 @@ def edit_goal(id):
             flash("Goal updated.", "success")
             return redirect(url_for("goals"))
 
-    return _render_goal_form(form, error, goal_id=id)
+    return _render_goal_form(form, error, goal_id=id, selected=selected)
+
+
+def _goal_id_from_form(user_id):
+    """The optional hidden `goal_id` (edit form); 404 if it is not the user's."""
+    raw = request.form.get("goal_id", "")
+    if not raw:
+        return None
+    try:
+        goal_id = int(raw)
+    except ValueError:
+        abort(404)
+    # SQLite integers are 64-bit; anything larger cannot be a real id.
+    if not 0 < goal_id < 2**63 or queries.get_goal(goal_id, user_id) is None:
+        abort(404)
+    return goal_id
+
+
+def _suggestion_inputs(form):
+    """Validate what is sent to the paid LLM; return (name, target, deadline, error).
+
+    The name must be valid. Target and Deadline are optional hints, so a
+    value that does not validate is simply left out.
+    """
+    name, error = _validate_name(form.get("name", ""))
+    if error:
+        return None, "", "", error
+    target, target_error = _validate_amount(form.get("target_amount", ""))
+    deadline = form.get("deadline", "").strip()
+    try:
+        datetime.strptime(deadline, "%Y-%m-%d")
+    except ValueError:
+        deadline = ""
+    return name, "" if target_error else target, deadline, None
+
+
+def _suggest_cooldown_active():
+    """True if this session asked for a suggestion too recently."""
+    now = time.time()
+    last = session.get("last_suggest", 0)
+    if now - last < app.config["SUGGEST_COOLDOWN_SECONDS"]:
+        return True
+    session["last_suggest"] = now
+    return False
+
+
+@app.route("/goals/suggest", methods=["POST"])
+@login_required
+@csrf_protect
+def suggest_goal():
+    """Fill the Goal form with a suggested Importance and Dependencies.
+
+    Nothing is saved: the user reviews the form and saves it (ADR 0001).
+    """
+    user_id = session["user_id"]
+    goal_id = _goal_id_from_form(user_id)
+    form = request.form.to_dict()
+    selected = _int_list(request.form.getlist("depends_on"))
+    others = _other_goals(user_id, goal_id)
+
+    name, target, deadline, error = _suggestion_inputs(form)
+    if error:
+        notice = error
+    elif _suggest_cooldown_active():
+        notice = "Please wait a moment before asking again."
+    else:
+        result = suggestions.suggest(name, target, deadline, others)
+        if result is None:
+            notice = "Suggestions are unavailable right now. Choose manually."
+        else:
+            form["importance"] = result["importance"]
+            selected = result["depends_on"]
+            notice = "Suggested by AI. Review before saving."
+
+    return _render_goal_form(
+        form, goal_id=goal_id, selected=selected, notice=notice, others=others
+    )
 
 
 @app.route("/goals/<int:id>/delete", methods=["GET", "POST"])

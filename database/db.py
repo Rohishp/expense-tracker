@@ -100,6 +100,18 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS goal_dependencies (
+                goal_id INTEGER NOT NULL,
+                depends_on_goal_id INTEGER NOT NULL,
+                PRIMARY KEY (goal_id, depends_on_goal_id),
+                FOREIGN KEY (goal_id) REFERENCES goals (id) ON DELETE CASCADE,
+                FOREIGN KEY (depends_on_goal_id) REFERENCES goals (id)
+                    ON DELETE CASCADE
+            )
+            """
+        )
         conn.commit()
     finally:
         conn.close()

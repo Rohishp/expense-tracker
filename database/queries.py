@@ -338,7 +338,7 @@ def delete_obligation(obligation_id, user_id):
 _GOAL_COLUMNS = "id, name, target_amount, saved_amount, deadline, importance"
 
 
-def _goal_to_dict(row):
+def _goal_to_dict(row, depends_on=()):
     return {
         "id": row["id"],
         "name": row["name"],
@@ -346,7 +346,40 @@ def _goal_to_dict(row):
         "saved_amount": float(row["saved_amount"]),
         "deadline": row["deadline"],
         "importance": row["importance"],
+        "depends_on": list(depends_on),
     }
+
+
+def _replace_dependencies(conn, goal_id, user_id, depends_on):
+    """Set the Goals that `goal_id` depends on (no commit).
+
+    Ownership is enforced in SQL: only Goals of `user_id` can be inserted,
+    and a Goal can never depend on itself.
+    """
+    conn.execute("DELETE FROM goal_dependencies WHERE goal_id = ?", (goal_id,))
+    conn.executemany(
+        "INSERT OR IGNORE INTO goal_dependencies (goal_id, depends_on_goal_id) "
+        "SELECT ?, id FROM goals WHERE id = ? AND user_id = ? AND id != ?",
+        [(goal_id, d, user_id, goal_id) for d in depends_on],
+    )
+
+
+def _dependency_edges(conn, user_id):
+    rows = conn.execute(
+        "SELECT d.goal_id, d.depends_on_goal_id FROM goal_dependencies d "
+        "JOIN goals g ON g.id = d.goal_id WHERE g.user_id = ?",
+        (user_id,),
+    ).fetchall()
+    return [(r["goal_id"], r["depends_on_goal_id"]) for r in rows]
+
+
+def get_dependency_edges(user_id):
+    """Return every (goal_id, depends_on_goal_id) pair for the user's Goals."""
+    conn = get_db()
+    try:
+        return _dependency_edges(conn, user_id)
+    finally:
+        conn.close()
 
 
 def list_goals(user_id):
@@ -358,7 +391,12 @@ def list_goals(user_id):
             "WHERE user_id = ? ORDER BY deadline, id",
             (user_id,),
         ).fetchall()
-        return [_goal_to_dict(r) for r in rows]
+        dependencies = {}
+        for goal_id, depends_on_id in _dependency_edges(conn, user_id):
+            dependencies.setdefault(goal_id, []).append(depends_on_id)
+        return [
+            _goal_to_dict(r, sorted(dependencies.get(r["id"], ()))) for r in rows
+        ]
     finally:
         conn.close()
 
@@ -384,13 +422,26 @@ def get_goal(goal_id, user_id):
             f"SELECT {_GOAL_COLUMNS} FROM goals WHERE id = ? AND user_id = ?",
             (goal_id, user_id),
         ).fetchone()
-        return None if row is None else _goal_to_dict(row)
+        if row is None:
+            return None
+        dependencies = conn.execute(
+            "SELECT depends_on_goal_id FROM goal_dependencies "
+            "WHERE goal_id = ? ORDER BY depends_on_goal_id",
+            (goal_id,),
+        ).fetchall()
+        return _goal_to_dict(row, [d["depends_on_goal_id"] for d in dependencies])
     finally:
         conn.close()
 
 
 def create_goal(
-    user_id, name, target_amount, saved_amount, deadline, importance
+    user_id,
+    name,
+    target_amount,
+    saved_amount,
+    deadline,
+    importance,
+    depends_on=(),
 ):
     """Insert a Goal for `user_id` and return its new id."""
     conn = get_db()
@@ -401,6 +452,7 @@ def create_goal(
             "VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, name, target_amount, saved_amount, deadline, importance),
         )
+        _replace_dependencies(conn, cursor.lastrowid, user_id, depends_on)
         conn.commit()
         return cursor.lastrowid
     finally:
@@ -408,7 +460,14 @@ def create_goal(
 
 
 def update_goal(
-    goal_id, user_id, name, target_amount, saved_amount, deadline, importance
+    goal_id,
+    user_id,
+    name,
+    target_amount,
+    saved_amount,
+    deadline,
+    importance,
+    depends_on=(),
 ):
     """Update a Goal owned by `user_id`. Return True if a row changed."""
     conn = get_db()
@@ -426,6 +485,8 @@ def update_goal(
                 user_id,
             ),
         )
+        if cursor.rowcount > 0:
+            _replace_dependencies(conn, goal_id, user_id, depends_on)
         conn.commit()
         return cursor.rowcount > 0
     finally:
@@ -433,7 +494,10 @@ def update_goal(
 
 
 def delete_goal(goal_id, user_id):
-    """Delete a Goal owned by `user_id`. Return True if a row was deleted."""
+    """Delete a Goal owned by `user_id`. Return True if a row was deleted.
+
+    Rows in goal_dependencies that mention it go too (ON DELETE CASCADE).
+    """
     conn = get_db()
     try:
         cursor = conn.execute(
