@@ -20,12 +20,21 @@ Rules:
 - Never calculate Installments, Surplus or dates yourself. Use simulate_plan
   and quote only numbers it returned.
 - Try more than one option when the first does not fit (a later Deadline,
-  a different Importance, dropping a Nice-to-have Goal) and compare them.
-- Always say which existing Goals a change would make Unreachable.
+  a smaller amount or a different Importance for what was asked) and
+  compare them.
+- Always say which existing Goals a change would make Unreachable and which
+  Top-ups it pauses.
 - You cannot save anything. Put the changes you recommend in
   final_answer.proposed_changes; the user confirms them.
+- Only propose changes to what the user asked about. Never change the
+  Deadline or Importance of a Goal the user did not mention. Other options,
+  like dropping a Nice-to-have Goal, go in the summary, not in
+  proposed_changes.
+- Never propose an Income or Obligation change the user did not mention.
+- If the question is not about Income, Obligations or Goals, answer briefly
+  and propose no changes.
 - Use these words exactly: Income, Obligation, Goal, Deadline, Importance,
-  Installment, Surplus, Unreachable Goal, Plan.
+  Installment, Surplus, Unreachable Goal, Top-up, Plan.
 - Finish by calling final_answer exactly once."""
 
 
@@ -76,7 +85,7 @@ def run_advisor(question, snapshot, call_model, today, max_steps=8):
             continue
 
         for call in calls:
-            result, is_final = dispatch(call["name"], call["arguments"], snapshot, today)
+            result, is_final = dispatch(call["name"], call["arguments"], snapshot, today, question)
             trace.append({"type": "tool", "step": step, "name": call["name"],
                           "arguments": call["arguments"], "result": result})
             if is_final:

@@ -4,7 +4,7 @@ How the app grew, step by step, and what led to each change. Sources:
 - the git history and the step specs in `.claude/specs/` (the "why" for steps
   1–13 comes from them);
 - `GLOSSARY.md` and the ADRs in `docs/adr/`;
-- the 2026-10-16 working session (steps 13–14, evals).
+- the 2026-10-16 working sessions (steps 13–14, evals, advisor fixes).
 
 ## Timeline
 
@@ -119,6 +119,39 @@ re-spread freed money, the user wanted to be told and then decide.
 - **First real baseline:** pass^1 0.58, pass^3 0.30, after discounting grader
   false positives. Next steps are in `docs/advisor-next-steps.md`.
 
+### 8. Fixing the advisor (10-16), `feature/advisor-eval-fixes`
+**What led to it.** The baseline traces showed four real problems:
+- an off-topic question got a new Goal;
+- the model invented Income to "solve" an impossible trip;
+- it proposed changes nobody asked for;
+- it never mentioned a paused Top-up.
+
+The grader also flagged 8 summaries that were actually correct.
+
+**What changed:**
+- **Grader:** an Importance word is checked only when it is attached to a Goal
+  name, e.g. `Laptop (Nice-to-have)`. It used to be matched to the nearest
+  name.
+- **Diff:** `simulate_plan` now reports Top-up status changes, so the model
+  sees a paused Top-up.
+- **Guard (structure, not prompt):** `final_answer` rejects Income and
+  Obligation amounts the question did not give. It also rejects removing a
+  Goal or Obligation the question did not name.
+- **Prompt rules:**
+  - off-topic questions get no changes;
+  - no Income or Obligation change the user did not mention;
+  - only Goals the user mentioned may change.
+- **`pytest.ini`:** bare `pytest` works.
+
+**Result:** pass^1 0.58 → 0.72, pass^3 0.30 → 0.50.
+- Collateral 46 → 56 of 60.
+- No answer proposed Income.
+- `off_topic` is still 0/3.
+
+The biggest remaining failure is a "yes" verdict while another Goal becomes
+Unreachable or a Top-up is paused (7 runs). Next steps are in
+`docs/advisor-next-steps.md`.
+
 ## Decision log
 
 | Decision | Why | Recorded in |
@@ -136,6 +169,8 @@ re-spread freed money, the user wanted to be told and then decide.
 | Step 14 names avoid "free money" and "allocation" | The glossary lists them as words to avoid | spec 14 |
 | A redirect is checked against money still free from its start date | The same money can't be redirected twice | spec 14 |
 | The advisor has no write tool | Safety by structure, not by prompt | `docs/advisor.md` |
+| `final_answer` rejects Income or Obligation amounts the question did not give, and removals it did not name | A model can ignore a prompt rule but not a guard; `simulate_plan` stays unchecked so the model can still explore | `docs/advisor.md` |
+| The Importance grader checks only words attached to a Goal name | Nearest-name matching flagged 9 summaries, 8 of them wrongly | `advisor/evals.py` |
 | Evals use code graders, pass^k and a reference answer per task | Scores mean the same every time; users need consistency; a failing task must be fair | `advisor/evals.py` |
 | `temperature` left out for `gpt-5*` models | The API rejects 0 for them (seen as a 400 error) | `advisor/openai_client.py` |
 | Real-model evals never run in `pytest` | They cost money and take minutes | `CLAUDE.md` |
@@ -151,4 +186,5 @@ re-spread freed money, the user wanted to be told and then decide.
   `docs/advisor-next-steps.md`.
 - **The advisor is not wired into `app.py`.**
 - **The analytics page** is still "coming soon".
-- **`feature/redirect-surplus`** is pushed but not merged.
+- **`feature/redirect-surplus`** is pushed but not merged;
+  `feature/advisor-eval-fixes` is built on it.

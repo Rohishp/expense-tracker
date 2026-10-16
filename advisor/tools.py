@@ -7,6 +7,7 @@ planner.plan(), so the LLM never does money arithmetic (docs/adr/0001).
 
 import copy
 import json
+import re
 from datetime import date
 
 import planner
@@ -68,7 +69,8 @@ TOOLS = [
             "description": (
                 "Run the Plan on a hypothetical copy with these changes applied. "
                 "Changes nothing. Returns the new Plan and what changed versus "
-                "the current Plan. Use it for every what-if; never calculate "
+                "the current Plan (Goals, Top-ups and the Surplus). Use it for "
+                "every what-if; never calculate "
                 "Installments or dates yourself. Every call starts again from "
                 "the user's real data: changes from earlier calls are NOT kept, "
                 "so to try a different version of a Goal you are adding, send "
@@ -89,7 +91,8 @@ TOOLS = [
                 "Finish. verdict: 'yes' if it fits exactly as asked; "
                 "'trade_off' if it fits only when something changes (a later "
                 "Deadline or smaller amount for what was asked, another Goal, "
-                "or the Income); 'no' if it cannot fit even with the changes "
+                "or the Income) or when it pauses a Top-up; 'no' if it cannot "
+                "fit even with the changes "
                 "the user allows. proposed_changes: the least disruptive "
                 "changes that work, or none. They are shown to the user, who "
                 "must confirm them before anything is saved."
@@ -256,7 +259,8 @@ def _compact(plan):
 
 
 def diff_plans(before, after):
-    """What a change did: every Goal whose status or Installment moved."""
+    """What a change did: every Goal whose status or Installment moved, and
+    every Top-up whose status moved (a Top-up on a removed Goal is removed)."""
     old = {i["id"]: i for i in before["items"]}
     changed = []
     for item in after["items"]:
@@ -270,14 +274,97 @@ def diff_plans(before, after):
                             "earliest_date": item["earliest_date"]})
     for prev in old.values():
         changed.append({"goal": prev["name"], "change": "removed"})
-    return {"goals_changed": changed, "surplus": [before["surplus"], after["surplus"]]}
+
+    new_top_ups = {t["id"]: t for t in after["top_ups"]}
+    top_ups_changed = []
+    for prev in before["top_ups"]:
+        top_up = new_top_ups.get(prev["id"])
+        entry = {"goal": prev["goal_name"], "amount": prev["amount"]}
+        if top_up is None:
+            top_ups_changed.append(dict(entry, change="removed"))
+        elif top_up["status"] != prev["status"]:
+            top_ups_changed.append(dict(entry, status=[prev["status"], top_up["status"]]))
+    return {"goals_changed": changed, "top_ups_changed": top_ups_changed,
+            "surplus": [before["surplus"], after["surplus"]]}
+
+
+# ---------------------------------------------------------------- scope guard
+
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_AMOUNT = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def question_amounts(question):
+    """Every amount in the question, in cents. Dates are not amounts."""
+    amounts = set()
+    for raw in _AMOUNT.findall(_ISO_DATE.sub(" ", question or "")):
+        try:
+            amounts.add(round(float(raw.replace(",", "")) * 100))
+        except ValueError:
+            pass
+    return amounts
+
+
+def _named(question, name):
+    pattern = r"(?<!\w)" + re.escape(name.lower()) + r"(?!\w)"
+    return re.search(pattern, (question or "").lower()) is not None
+
+
+def check_scope(proposed, snapshot, question):
+    """Reject proposed changes the question did not open up.
+
+    An Income or Obligation amount must come from the question, either as
+    the new amount or as the change from the old one ("rent goes up by
+    200"), and an Obligation or Goal may only be removed if the question
+    names it. A model can ignore a prompt rule; it cannot get past this.
+    """
+    amounts = question_amounts(question)
+
+    def given(new, old=None):
+        cents = round(new * 100)
+        return cents in amounts or (old is not None and abs(cents - round(old * 100)) in amounts)
+
+    for change in proposed:
+        op = change.get("op")
+        if op == "set_income" and not given(change["amount"], snapshot["income"]):
+            raise ToolError(
+                "Do not propose set_income: the user did not give that Income amount. "
+                "Explain the option in the summary instead."
+            )
+        if op == "add_obligation" and not given(change["amount"]):
+            raise ToolError(
+                "Do not propose add_obligation: the user did not give that amount. "
+                "Explain the option in the summary instead."
+            )
+        if op in ("update_obligation", "remove_obligation"):
+            obligation = _find(snapshot["obligations"], change.get("obligation_id"), "Obligation")
+            if op == "update_obligation" and "amount" in change:
+                allowed = given(change["amount"], obligation["amount"])
+            else:
+                allowed = _named(question, obligation["name"])
+            if not allowed:
+                raise ToolError(
+                    f"Do not propose {op} on the {obligation['name']} Obligation: the user "
+                    "did not ask for that change. Explain the option in the summary instead."
+                )
+        if op == "remove_goal":
+            goal = _find(snapshot["goals"], change.get("goal_id"), "Goal")
+            if not _named(question, goal["name"]):
+                raise ToolError(
+                    f"Do not propose removing the {goal['name']} Goal: the user did not "
+                    "name it. Mention that option in the summary instead."
+                )
 
 
 # ---------------------------------------------------------------- dispatch
 
 
-def dispatch(name, raw_arguments, snapshot, today):
-    """Run one tool call. Returns (result_dict, is_final)."""
+def dispatch(name, raw_arguments, snapshot, today, question=""):
+    """Run one tool call. Returns (result_dict, is_final).
+
+    `question` is the user's question; final_answer checks proposals
+    against it (check_scope).
+    """
     try:
         args = json.loads(raw_arguments or "{}")
     except json.JSONDecodeError:
@@ -303,6 +390,8 @@ def dispatch(name, raw_arguments, snapshot, today):
             # Reject proposals that would not even validate, so the user
             # is never shown a change the app would refuse to save.
             apply_changes(snapshot, proposed, today)
+            # Only in final_answer: simulate_plan may still explore anything.
+            check_scope(proposed, snapshot, question)
             if args.get("verdict") not in ("yes", "trade_off", "no"):
                 raise ToolError("verdict must be yes, trade_off or no.")
             summary = args.get("summary")

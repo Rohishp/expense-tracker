@@ -6,3 +6,6 @@ __pycache__/
 .env
 .DS_Store
 .claude/plans/
+
+# advisor eval traces (python -m advisor.evals --out)
+traces/

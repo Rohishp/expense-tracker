@@ -91,6 +91,66 @@ def test_final_answer_without_a_summary_goes_back_to_the_model():
     assert result.summary == "Fits."
 
 
+def _final(question, changes):
+    args = {"verdict": "yes", "summary": "x", "proposed_changes": changes}
+    return dispatch("final_answer", json.dumps(args), BASE, TODAY, question)
+
+
+def test_an_invented_income_is_rejected_and_the_loop_goes_on():
+    # Seen in real traces: an Income raise nobody mentioned, to make a Goal fit.
+    model = ScriptedModel([
+        call("final_answer", {"verdict": "yes", "summary": "x",
+                              "proposed_changes": [{"op": "set_income", "amount": 2200}]}),
+        call("final_answer", {"verdict": "no", "summary": "x", "proposed_changes": []}),
+    ])
+    result = run_advisor("Why is my laptop not funded sooner?", BASE, model, TODAY)
+    assert "Do not propose set_income" in json.loads(model.seen[1][-1]["content"])["error"]
+    assert result.stopped_reason == "final_answer" and result.proposed_changes == []
+
+
+@pytest.mark.parametrize("question, change", [
+    ("I got a raise to 2400 euros a month.", {"op": "set_income", "amount": 2400}),
+    ("I got a raise of 400 euros.", {"op": "set_income", "amount": 2400}),
+    ("My income is now 2,400.", {"op": "set_income", "amount": 2400}),
+    ("My rent goes up by 200 euros.", {"op": "update_obligation", "obligation_id": 1, "amount": 1100}),
+    ("I joined a gym for 50 a month.", {"op": "add_obligation", "name": "Gym", "amount": 50}),
+    ("I no longer pay for groceries.", {"op": "remove_obligation", "obligation_id": 2}),
+    ("What happens if I stop saving for the laptop?", {"op": "remove_goal", "goal_id": 2}),
+])
+def test_a_change_the_user_asked_for_passes_the_scope_guard(question, change):
+    result, is_final = _final(question, [change])
+    assert is_final, result
+
+
+@pytest.mark.parametrize("question, change", [
+    ("Can I afford a camera?", {"op": "set_income", "amount": 2200}),
+    # Date parts are not amounts.
+    ("Can I get a camera by 2027-01-14?", {"op": "set_income", "amount": 2027}),
+    ("Is my car licence on track?", {"op": "update_obligation", "obligation_id": 1, "amount": 1000}),
+    ("Can I add a 900 euro camera?", {"op": "add_obligation", "name": "Camera", "amount": 50}),
+    ("Can I add a 900 euro camera?", {"op": "remove_obligation", "obligation_id": 2}),
+    ("Can I add a 900 euro camera?", {"op": "remove_goal", "goal_id": 2}),
+])
+def test_a_change_the_user_did_not_ask_for_is_rejected(question, change):
+    result, is_final = _final(question, [change])
+    assert not is_final and result["error"].startswith("Do not propose")
+
+
+def test_simulate_plan_may_still_explore_any_change():
+    change = {"op": "set_income", "amount": 9999}
+    result, _ = dispatch("simulate_plan", json.dumps({"changes": [change]}), BASE, TODAY, "Camera?")
+    assert "error" not in result
+
+
+@pytest.mark.parametrize("scenario", evals.SCENARIOS, ids=lambda s: s["id"])
+def test_every_reference_answer_and_given_fact_passes_the_scope_guard(scenario):
+    changes = scenario["reference"]["changes"] + scenario.get("given", [])
+    args = {"verdict": "yes", "summary": "x", "proposed_changes": changes}
+    result, is_final = dispatch("final_answer", json.dumps(args), evals.snapshot_for(scenario),
+                                TODAY, scenario["question"])
+    assert is_final, result
+
+
 def test_step_limit_stops_a_model_that_never_finishes():
     model = ScriptedModel([call("get_finances")] * 20)
     result = run_advisor("?", BASE, model, TODAY, max_steps=4)
@@ -110,6 +170,32 @@ def test_diff_reports_a_goal_that_becomes_unreachable():
     result, _ = dispatch("simulate_plan", json.dumps({"changes": [change]}), BASE, TODAY)
     laptop = next(g for g in result["diff"]["goals_changed"] if g["goal"] == "Laptop")
     assert laptop["status"] == ["funded", "unreachable"]
+
+
+TOP_UPS = evals.FIXTURES["top_ups"]  # an active 300 Top-up on the Car licence, Surplus 0
+BIKE = {"op": "add_goal", "name": "Bike", "target_amount": 600,
+        "deadline": "2027-02-13", "importance": "Nice-to-have"}
+
+
+def _top_ups_changed(snapshot, changes):
+    result, _ = dispatch("simulate_plan", json.dumps({"changes": changes}), snapshot, TODAY)
+    return result["diff"]["top_ups_changed"]
+
+
+def test_diff_reports_a_top_up_that_gets_paused():
+    # Seen in real traces: the model said "yes" and never mentioned the
+    # paused Top-up, which the diff did not report.
+    assert _top_ups_changed(TOP_UPS, [BIKE]) == [
+        {"goal": "Car licence", "amount": 300.0, "status": ["active", "paused"]}]
+
+
+def test_diff_reports_no_top_up_change_when_none_moves():
+    assert _top_ups_changed(TOP_UPS, [{"op": "update_goal", "goal_id": 2, "deadline": "2027-12-11"}]) == []
+
+
+def test_diff_reports_a_top_up_removed_with_its_goal():
+    assert _top_ups_changed(TOP_UPS, [{"op": "remove_goal", "goal_id": 1}]) == [
+        {"goal": "Car licence", "amount": 300.0, "change": "removed"}]
 
 
 def test_editing_a_goal_added_in_an_earlier_call_explains_that_calls_start_fresh():
@@ -207,6 +293,35 @@ def test_a_right_importance_next_to_its_goal_passes_wording():
     good = _with("camera_fits", summary="Car licence (Must-have) and Laptop (Should-have) "
                                         "stay funded; the Camera Installment is 300.")
     assert evals.score(SCENARIOS["camera_fits"], good)["wording"] is True
+
+
+# The old grader matched each Importance word to the nearest Goal name and
+# flagged all of these; none gives a Goal the wrong Importance. The first was
+# seen in a real trace, the rest have the same shape.
+NOT_ATTACHED = [
+    "Car licence remains funded (Must-have) and the Laptop stays funded.",
+    "Car licence is Must-have, Laptop is Should-have.",
+    "Your Camera Goal would be Nice-to-have; Laptop and Car licence stay funded.",
+    "The Car licence stays a Must-have; Laptop is untouched.",
+    "Car licence keeps its Installment as a Must-have and Laptop as a Should-have.",
+    "The Camera would be a Nice-to-have, so Laptop stays funded.",
+    "Car licence (400) is Must-have, Laptop (100) Should-have.",
+    "The Laptop keeps 100. Must-have Goals like the Car licence keep 400.",
+    "Nothing changes for the Car licence, which is Must-have, or the Laptop.",
+]
+
+
+@pytest.mark.parametrize("summary", NOT_ATTACHED)
+def test_an_importance_word_only_near_another_goal_passes_wording(summary):
+    assert evals.score(SCENARIOS["camera_fits"], _with("camera_fits", summary=summary))["wording"] is True
+
+
+@pytest.mark.parametrize("summary", [
+    "Remove Laptop (Nice-to-have) to make room.",  # seen in a real trace
+    "You could drop the Nice-to-have Laptop.",
+])
+def test_a_wrong_importance_attached_to_a_goal_fails_wording(summary):
+    assert evals.score(SCENARIOS["camera_fits"], _with("camera_fits", summary=summary))["wording"] is False
 
 
 def test_an_avoided_glossary_word_fails_wording():
