@@ -209,6 +209,35 @@ def test_a_right_importance_next_to_its_goal_passes_wording():
     assert evals.score(SCENARIOS["camera_fits"], good)["wording"] is True
 
 
+# The old grader matched each Importance word to the nearest Goal name and
+# flagged all of these; none gives a Goal the wrong Importance. The first was
+# seen in a real trace, the rest have the same shape.
+NOT_ATTACHED = [
+    "Car licence remains funded (Must-have) and the Laptop stays funded.",
+    "Car licence is Must-have, Laptop is Should-have.",
+    "Your Camera Goal would be Nice-to-have; Laptop and Car licence stay funded.",
+    "The Car licence stays a Must-have; Laptop is untouched.",
+    "Car licence keeps its Installment as a Must-have and Laptop as a Should-have.",
+    "The Camera would be a Nice-to-have, so Laptop stays funded.",
+    "Car licence (400) is Must-have, Laptop (100) Should-have.",
+    "The Laptop keeps 100. Must-have Goals like the Car licence keep 400.",
+    "Nothing changes for the Car licence, which is Must-have, or the Laptop.",
+]
+
+
+@pytest.mark.parametrize("summary", NOT_ATTACHED)
+def test_an_importance_word_only_near_another_goal_passes_wording(summary):
+    assert evals.score(SCENARIOS["camera_fits"], _with("camera_fits", summary=summary))["wording"] is True
+
+
+@pytest.mark.parametrize("summary", [
+    "Remove Laptop (Nice-to-have) to make room.",  # seen in a real trace
+    "You could drop the Nice-to-have Laptop.",
+])
+def test_a_wrong_importance_attached_to_a_goal_fails_wording(summary):
+    assert evals.score(SCENARIOS["camera_fits"], _with("camera_fits", summary=summary))["wording"] is False
+
+
 def test_an_avoided_glossary_word_fails_wording():
     bad = _with("camera_fits", summary="Your budget has room: the Installment is 300.")
     assert evals.score(SCENARIOS["camera_fits"], bad)["wording"] is False

@@ -472,26 +472,24 @@ def _grounded(summary, sources):
 
 
 def _wrong_importance(summary, levels_by_name):
-    """True if an Importance word sits next to a Goal that does not have it.
+    """True if an Importance word attached to a Goal name is not that Goal's.
 
-    Each Importance word is matched to the nearest Goal name within 40
-    characters, e.g. "a Nice-to-have concern (Laptop)" for a Should-have
-    Laptop. `levels_by_name` holds the levels a Goal may have (before or
-    after the proposed changes).
+    Only these shapes count as attached, e.g. for a Should-have Laptop:
+    "Laptop (Nice-to-have)", "Nice-to-have Laptop" and "Nice-to-have
+    concern (Laptop)". A word that is only nearby is not checked: matching
+    it to the nearest Goal name flagged "Car licence is Must-have, Laptop
+    ..." as calling the Laptop Must-have. `levels_by_name` holds the levels
+    a Goal may have (before or after the proposed changes).
     """
     lowered = summary.lower()
-    spans = []
     for name, levels in levels_by_name.items():
-        start = lowered.find(name.lower())
-        while start != -1:
-            spans.append((start, start + len(name), levels))
-            start = lowered.find(name.lower(), start + 1)
-    for level in LEVELS:
-        for match in re.finditer(re.escape(level.lower()), lowered):
-            near = [(min(abs(match.start() - end), abs(start - match.end())), levels)
-                    for start, end, levels in spans]
-            near = [n for n in near if n[0] <= 40]
-            if near and level not in min(near, key=lambda n: n[0])[1]:
+        n = r"(?<!\w)" + re.escape(name.lower())
+        for level in LEVELS:
+            if level in levels:
+                continue
+            lv = re.escape(level.lower())
+            shapes = (rf"{n}\s*\(\s*{lv}\b", rf"{lv}\s+{n}\b", rf"{lv}\s+\w+\s*\(\s*{n}\s*\)")
+            if any(re.search(shape, lowered) for shape in shapes):
                 return True
     return False
 
