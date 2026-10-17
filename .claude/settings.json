@@ -1,6 +1,7 @@
 {
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true
+  "attribution": {
+    "commit": "",
+    "pr": ""
   },
   "hooks": {
     "PostToolUse": [
@@ -26,8 +27,8 @@
       }
     ]
   },
-  "attribution": {
-    "commit": "",
-    "pr": ""
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "langsmith-tracing@langsmith-claude-code-plugins": true
   }
 }
