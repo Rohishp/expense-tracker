@@ -10,4 +10,5 @@ __pycache__/
 # scratch eval traces (--out); kept runs go to evals/results/, which is committed
 traces/
 .claude/settings.local.json
+.claude/langsmith.json
 traces*.jsonl

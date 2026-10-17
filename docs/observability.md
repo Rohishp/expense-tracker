@@ -56,7 +56,7 @@ Workflow: run evals → `evals/results/runs.csv` gets the scores and `evals/resu
 
 ## 3. Trace the Claude Code workflow (`spendly-build`)
 
-Inside Claude Code, in this repo:
+Needs Node.js 20 or newer (except on a Mac). Inside Claude Code, in this repo:
 
 ```
 /plugin marketplace add langchain-ai/langsmith-claude-code-plugins
@@ -64,7 +64,9 @@ Inside Claude Code, in this repo:
 /reload-plugins
 ```
 
-Then `cp .claude/settings.local.json.example .claude/settings.local.json` and put in your key (the file is gitignored). Every Claude Code turn becomes a trace: your message, the model calls, every tool call (Read, Edit, Bash, GitHub MCP) and subagent runs nested underneath. Turns of one session are grouped in the **Threads** tab.
+The install enables the plugin in the committed `.claude/settings.json`, but it sends nothing until tracing is switched on. To switch it on for this repo only, `cp .claude/langsmith.json.example .claude/langsmith.json` and put in your LangSmith key, the same one as in `.env` (the file is gitignored; `~/.claude/langsmith.json` would trace every project). Start a new session, send a message, then run `/langsmith-tracing:trace` for a link to the conversation's trace. To keep one conversation out of LangSmith, run `/langsmith-tracing:mute` before sending anything sensitive.
+
+Every Claude Code turn becomes a trace: your message, the model calls, every tool call (Read, Edit, Bash, GitHub MCP) and subagent runs nested underneath. Turns of one session are grouped in the **Threads** tab.
 
 What to look at:
 - `/code-review-feature`: both reviewer subagents as sibling runs, with their findings.
