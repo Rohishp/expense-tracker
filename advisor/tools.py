@@ -14,15 +14,19 @@ import planner
 from advisor.tracing import traceable
 
 IMPORTANCE_LEVELS = list(planner.IMPORTANCE_ORDER)
-CHANGE_OPS = [
-    "add_goal",
-    "update_goal",
-    "remove_goal",
-    "set_income",
-    "add_obligation",
-    "update_obligation",
-    "remove_obligation",
-]
+# The fields each op reads. Any other field is rejected, not ignored: in real
+# traces the model set a Goal's "amount" to stop saving for it, the planner
+# never saw it, and the model told the user nothing would change.
+OP_FIELDS = {
+    "add_goal": {"name", "target_amount", "saved_amount", "deadline", "importance"},
+    "update_goal": {"goal_id", "name", "target_amount", "saved_amount", "deadline", "importance"},
+    "remove_goal": {"goal_id"},
+    "set_income": {"amount"},
+    "add_obligation": {"name", "amount"},
+    "update_obligation": {"obligation_id", "name", "amount"},
+    "remove_obligation": {"obligation_id"},
+}
+CHANGE_OPS = list(OP_FIELDS)
 
 
 class ToolError(Exception):
@@ -33,7 +37,7 @@ class ToolError(Exception):
 
 CHANGE_SCHEMA = {
     "type": "object",
-    "description": "One hypothetical change. Only the fields its op needs.",
+    "description": "One hypothetical change. Only the fields its op needs; any other field is an error.",
     "properties": {
         "op": {"type": "string", "enum": CHANGE_OPS},
         "goal_id": {"type": "integer"},
@@ -170,12 +174,29 @@ def _check_goal(goal, today):
         raise ToolError("name is required.")
 
 
+def _check_fields(op, change):
+    if op not in OP_FIELDS:
+        raise ToolError(f"Unknown op {op!r}. Use one of {CHANGE_OPS}.")
+    unused = sorted(set(change) - OP_FIELDS[op] - {"op"})
+    if not unused:
+        return
+    message = f"{op} does not take {', '.join(unused)}; it takes {', '.join(sorted(OP_FIELDS[op]))}."
+    if op in ("add_goal", "update_goal") and {"amount", "installment"} & set(unused):
+        message += (
+            " A Goal's Installment is worked out by the Plan from its target_amount,"
+            " saved_amount and deadline, so it cannot be set. To stop saving for a"
+            " Goal, use remove_goal."
+        )
+    raise ToolError(message)
+
+
 def apply_changes(snapshot, changes, today):
     """Return a new snapshot with `changes` applied; the input is untouched."""
     state = copy.deepcopy(snapshot)
     next_id = 1 + max([g["id"] for g in state["goals"]] + [0])
     for change in changes:
         op = change.get("op")
+        _check_fields(op, change)
         if op == "add_goal":
             goal = {
                 "id": next_id,
@@ -214,8 +235,6 @@ def apply_changes(snapshot, changes, today):
         elif op == "remove_obligation":
             obligation = _find(state["obligations"], change.get("obligation_id"), "Obligation")
             state["obligations"].remove(obligation)
-        else:
-            raise ToolError(f"Unknown op {op!r}. Use one of {CHANGE_OPS}.")
     return state
 
 

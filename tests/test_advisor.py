@@ -207,6 +207,35 @@ def test_editing_a_goal_added_in_an_earlier_call_explains_that_calls_start_fresh
     assert "starts from the user's real data" in result["error"]
 
 
+def test_a_goal_amount_is_rejected_and_points_to_remove_goal():
+    # Seen in real traces (drop_laptop, 6 of 6 runs): "stop saving for the
+    # laptop" became amount 0, which was silently ignored, so the diff was
+    # empty and the model said nothing would change.
+    change = {"op": "update_goal", "goal_id": 2, "amount": 0}
+    result, _ = dispatch("simulate_plan", json.dumps({"changes": [change]}), BASE, TODAY)
+    assert result["error"].startswith("update_goal does not take amount")
+    assert "Installment is worked out by the Plan" in result["error"]
+    assert "remove_goal" in result["error"]
+
+
+@pytest.mark.parametrize("change, field", [
+    (dict(CAMERA, installment=300), "installment"),
+    ({"op": "update_goal", "goal_id": 1, "note": "later"}, "note"),
+    ({"op": "remove_goal", "goal_id": 2, "name": "Laptop"}, "name"),
+    ({"op": "set_income", "amount": 2100, "deadline": "2027-01-01"}, "deadline"),
+    ({"op": "update_obligation", "obligation_id": 1, "target_amount": 950}, "target_amount"),
+])
+def test_a_field_the_op_does_not_read_is_an_error_not_ignored(change, field):
+    result, _ = dispatch("simulate_plan", json.dumps({"changes": [change]}), BASE, TODAY)
+    assert result["error"].startswith(f"{change['op']} does not take {field};")
+
+
+def test_final_answer_never_shows_the_user_a_field_that_would_be_ignored():
+    args = {"verdict": "yes", "summary": "Fits.", "proposed_changes": [dict(CAMERA, amount=300)]}
+    result, is_final = dispatch("final_answer", json.dumps(args), BASE, TODAY, "Can I add a 900 euro camera?")
+    assert not is_final and "add_goal does not take amount" in result["error"]
+
+
 def test_plan_includes_top_ups_and_the_savings_pot():
     snapshot = dict(BASE, top_ups=[{"id": 1, "goal_id": 2, "amount": 100, "start_date": TODAY.isoformat()}],
                     pot_amounts=[{"id": 1, "amount": 50, "start_date": TODAY.isoformat()}])
