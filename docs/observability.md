@@ -1,11 +1,11 @@
-# Observability: tracing and evaluating Spendly's agents
+# Observability: tracing and evaluating SaWings's agents
 
 Two kinds of agents, two LangSmith projects, one account.
 
 | Project | What it traces | How |
 |---|---|---|
-| `spendly-app` | The app's LLM code: the advisor (OpenAI) and Goal suggestions (Anthropic), in local runs and evals | `@traceable` + wrapped clients (`advisor/tracing.py`) |
-| `spendly-build` | The Claude Code workflow that builds the app: `/create-spec`, `/test-feature`, `/code-review-feature`, `/ship-feature` and the four subagents | LangSmith's Claude Code plugin |
+| `sawings-app` | The app's LLM code: the advisor (OpenAI) and Goal suggestions (Anthropic), in local runs and evals | `@traceable` + wrapped clients (`advisor/tracing.py`) |
+| `sawings-build` | The Claude Code workflow that builds the app: `/create-spec`, `/test-feature`, `/code-review-feature`, `/ship-feature` and the four subagents | LangSmith's Claude Code plugin |
 
 ## 1. One-time setup
 
@@ -13,14 +13,14 @@ Two kinds of agents, two LangSmith projects, one account.
 2. `pip install -r requirements.txt` (now includes `langsmith`).
 3. `cp .env.example .env` and fill in the keys. `.env` is gitignored.
 
-## 2. Trace the app (`spendly-app`)
+## 2. Trace the app (`sawings-app`)
 
 In `.env`:
 
 ```
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=lsv2_...
-LANGSMITH_PROJECT=spendly-app
+LANGSMITH_PROJECT=sawings-app
 ```
 
 Then any of these sends traces:
@@ -54,7 +54,7 @@ A suggestion is `suggest_goal (chain) > ChatAnthropic (llm)`.
 
 Workflow: run evals → `evals/results/runs.csv` gets the scores and `evals/results/<eval>/` the traces → open the failed scenario in LangSmith to see *why* it failed → fix the prompt or the task → rerun.
 
-## 3. Trace the Claude Code workflow (`spendly-build`)
+## 3. Trace the Claude Code workflow (`sawings-build`)
 
 Needs Node.js 20 or newer (except on a Mac). Inside Claude Code, in this repo:
 

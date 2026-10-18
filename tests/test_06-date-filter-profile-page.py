@@ -16,7 +16,7 @@ from werkzeug.security import generate_password_hash
 import database.db as db
 from database import queries
 
-DEMO_EMAIL = "demo@spendly.com"
+DEMO_EMAIL = "demo@sawings.com"
 DEMO_PASSWORD = "demo123"
 DEMO_TOTAL_SPENT = 205.74
 DEMO_TRANSACTION_COUNT = 8

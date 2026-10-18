@@ -1,4 +1,4 @@
-# Spendly
+# SaWings
 
 A personal expense tracker. Beyond recording spending, it helps a user plan how a stable income is split across what they need to pay for and save towards.
 

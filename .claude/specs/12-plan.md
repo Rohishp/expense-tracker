@@ -1,7 +1,7 @@
 # Spec: Plan
 
 ## Overview
-Step 12 is the third of four steps (10–13) that add a savings plan to Spendly.
+Step 12 is the third of four steps (10–13) that add a savings plan to SaWings.
 Steps 10 and 11 stored the user's **Income**, **Obligations** and **Goals**. This
 step computes the **Plan**: a hypothetical split of the monthly Income across the
 Obligations and the Goals. It shows each Goal's **Installment**, the **Surplus**

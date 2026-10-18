@@ -1,8 +1,8 @@
-# Spendly
+# SaWings
 
 ## Project overview
 
-"Spendly" is a Flask-based personal expense tracker built incrementally, one numbered step at a time. Each step has a spec in `.claude/specs/` (`01-database-setup.md` … `15-advisor.md`); treat the spec as the source of truth for that step. Steps 1–15 are implemented: database setup, registration, login/logout, profile page wired to real data with a date filter, add/edit/delete expense, the savings plan, redirecting the Surplus, and the Advisor.
+"SaWings" is a Flask-based personal expense tracker built incrementally, one numbered step at a time. Each step has a spec in `.claude/specs/` (`01-database-setup.md` … `15-advisor.md`); treat the spec as the source of truth for that step. Steps 1–15 are implemented: database setup, registration, login/logout, profile page wired to real data with a date filter, add/edit/delete expense, the savings plan, redirecting the Surplus, and the Advisor.
 
 The **savings plan** (steps 10–13) is Income, Obligations, Goals (with Importance and Dependencies), and a computed Plan; an LLM may only suggest a Goal's Importance and Dependencies, and the user confirms them (ADR 0001). Step 14 forecasts each Freed Installment and lets the user redirect the Surplus or freed money into Top-ups, a Lump Sum or the Savings Pot; the Plan never redirects money itself (ADR 0002). Step 15 adds the **Advisor**: an LLM agent answers what-if questions by running the Plan on hypothetical changes and may propose Income, Obligation and Goal changes, saved only when the user confirms (ADR 0003, which extends ADR 0001 for this feature). Domain terms are defined in `GLOSSARY.md`; use those words exactly. Decisions live in `docs/adr/`.
 
@@ -23,7 +23,7 @@ Tracing: set `LANGSMITH_TRACING=true` in `.env` to send advisor and suggestion r
 
 There is no linter configured; a PostToolUse hook runs `black` on any `.py` file Claude writes or edits.
 
-Slash commands in `.claude/commands/`: `/create-spec`, `/test-feature`, `/code-review-feature`, `/ship-feature`, `/seed-user`, `/seed-expense`. Subagents in `.claude/agents/`: `spendly-test-writer`, `spendly-test-runner`, `spendly-security-reviewer`, `spendly-quality-reviewer`.
+Slash commands in `.claude/commands/`: `/create-spec`, `/test-feature`, `/code-review-feature`, `/ship-feature`, `/seed-user`, `/seed-expense`. Subagents in `.claude/agents/`: `sawings-test-writer`, `sawings-test-runner`, `sawings-security-reviewer`, `sawings-quality-reviewer`.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ Slash commands in `.claude/commands/`: `/create-spec`, `/test-feature`, `/code-r
 - **`database/queries.py`** — all SQL for expenses, the profile page, Income, Obligations, Goals, Top-ups and the Savings Pot (`create_expense` … `get_category_breakdown`, `get_income`/`set_income`, `*_obligation`, `*_goal`, `get_dependency_edges`, `add_lump_sum`, `*_top_up`, `*_pot_amount`, `create_redirect`, `*_advisor_run`). Every query filters by `user_id` so users only touch their own rows.
 - **`planner.py`** — the Plan: pure functions in integer cents (no Flask, no database, `today` passed in). Funds Goals by Importance then Deadline, after their Dependencies; Unreachable Goals take nothing. Then Top-ups, then the Savings Pot (cut first). Forecasts each Freed Installment and the redirect limits (`surplus_limit`, `freed[].limit`) so the same money is never redirected twice. Without Top-ups or Savings Pot amounts the Plan is the same as step 13.
 - **`advisor/`** — the Advisor agent (OpenAI): `loop.py` (the tool loop), `tools.py` (read-only tools and the `check_scope` guard), `apply.py` (the only write path, after the user confirms), `jobs.py` (background runs), `openai_client.py`, `evals.py`. The app reads `OPENAI_API_KEY` and `ADVISOR_MODEL` (required, no default model in code); without them the Advisor page says it is unavailable. Tests replace `app._advisor_caller` with a scripted model and never touch the network. Details in `docs/advisor.md`.
-- **`suggestions.py`** — the Goal suggestion LLM code (Anthropic). `suggest()` asks the Anthropic API for a Goal's Importance and Dependencies, validates the reply as untrusted input and returns `None` (never raises) when unavailable. Reads `ANTHROPIC_API_KEY` and optional `SPENDLY_LLM_MODEL` from the environment; tests replace `suggestions._call_llm` and never touch the network.
+- **`suggestions.py`** — the Goal suggestion LLM code (Anthropic). `suggest()` asks the Anthropic API for a Goal's Importance and Dependencies, validates the reply as untrusted input and returns `None` (never raises) when unavailable. Reads `ANTHROPIC_API_KEY` and optional `SAWINGS_LLM_MODEL` from the environment; tests replace `suggestions._call_llm` and never touch the network.
 - **`templates/`** — Jinja2 templates extending `base.html` (shared navbar/footer; blocks `title`, `head`, `content`, `scripts`). Each page has its own CSS in `static/css/` loaded via `{% block head %}`, layered on the shared `style.css`.
 - **`static/css/style.css`** — shared design tokens (CSS custom properties). Use the variables; never hardcode hex values.
 - **`static/js/main.js`** — shared JS (currently empty); page-specific JS is inlined in that page's `{% block scripts %}`.

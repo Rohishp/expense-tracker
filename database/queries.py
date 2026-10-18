@@ -1,4 +1,4 @@
-"""Pure query helpers for Spendly's profile page.
+"""Pure query helpers for SaWings's profile page.
 
 No Flask imports here — these are plain functions over sqlite3 rows so they
 can be unit-tested in isolation from the web layer. Each function opens its

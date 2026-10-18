@@ -1,5 +1,5 @@
 ---
-description: Writes and runs tests for a specific Spendly feature. Pass the spec name as argument e.g. /test-feature 05-backend-connection
+description: Writes and runs tests for a specific SaWings feature. Pass the spec name as argument e.g. /test-feature 05-backend-connection
 allowed-tools: Bash(python -m pytest)
 ---
 
@@ -19,7 +19,7 @@ Please check the spec name and try again."
 
 ## Step 1: Write Tests
 
-Invoke the **spendly-test-writer** subagent with the 
+Invoke the **sawings-test-writer** subagent with the 
 following context:
 
 - Spec file to base tests on: 
@@ -35,7 +35,7 @@ following context:
   cases, auth guards, validation errors, and DB side 
   effects.
 
-Wait for spendly-test-writer to fully complete and 
+Wait for sawings-test-writer to fully complete and 
 confirm the test file has been written before 
 proceeding to Step 2.
 
@@ -43,8 +43,8 @@ proceeding to Step 2.
 
 ## Step 2: Run Tests
 
-Once spendly-test-writer has finished, invoke the 
-**spendly-test-runner** subagent with the following 
+Once sawings-test-writer has finished, invoke the 
+**sawings-test-runner** subagent with the following 
 context:
 
 - Test file to execute:
@@ -71,7 +71,7 @@ context:
 - Do NOT attempt to fix any code regardless of what 
   the test results show
 - Do NOT run any tests beyond `tests/test_$ARGUMENTS.py`
-- If spendly-test-writer reports it could not write 
+- If sawings-test-writer reports it could not write 
   the test file, stop and report the reason — do NOT 
   proceed to Step 2
 
@@ -89,7 +89,7 @@ summary:
   of which spec requirement it validates
 
 **Step 2 — Test Results**
-- Mirror the spendly-test-runner's structured report
+- Mirror the sawings-test-runner's structured report
 
 **Verdict**
 One of:

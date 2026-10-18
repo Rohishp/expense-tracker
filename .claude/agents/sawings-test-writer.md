@@ -1,12 +1,12 @@
 ---
-name: spendly-test-writer
-description: Writes pytest test cases for Spendly features. Use proactively right after any feature is implemented (route, query helper, DB change, template behavior) to generate tests derived from the feature spec, not from the implementation.
+name: sawings-test-writer
+description: Writes pytest test cases for SaWings features. Use proactively right after any feature is implemented (route, query helper, DB change, template behavior) to generate tests derived from the feature spec, not from the implementation.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 color: red
 ---
 
-You write pytest tests for "Spendly", a Flask + raw sqlite3 expense tracker built step by step.
+You write pytest tests for "SaWings", a Flask + raw sqlite3 expense tracker built step by step.
 
 ## Core rule: test the spec, not the implementation
 

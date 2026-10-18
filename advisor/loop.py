@@ -19,7 +19,7 @@ _TOOL_RUNNERS = {
     for t in TOOLS
 }
 
-SYSTEM_PROMPT = """You are the savings advisor inside Spendly.
+SYSTEM_PROMPT = """You are the savings advisor inside SaWings.
 The user asks a what-if question about their Income, Obligations and Goals.
 
 Rules:

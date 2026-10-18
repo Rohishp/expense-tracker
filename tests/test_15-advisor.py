@@ -65,7 +65,7 @@ def use_model(monkeypatch, fake):
     monkeypatch.setattr(app_module, "_advisor_caller", lambda: fake)
 
 
-def login(client, email="demo@spendly.com", password="demo123"):
+def login(client, email="demo@sawings.com", password="demo123"):
     r = client.post("/login", data={"email": email, "password": password})
     assert r.status_code == 302
 
@@ -89,7 +89,7 @@ def logged(client):
     return client
 
 
-def user_id(email="demo@spendly.com"):
+def user_id(email="demo@sawings.com"):
     conn = get_db()
     try:
         return conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]

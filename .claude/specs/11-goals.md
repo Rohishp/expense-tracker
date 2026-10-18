@@ -1,7 +1,7 @@
 # Spec: Goals
 
 ## Overview
-Step 11 is the second of four steps (10–13) that add a savings plan to Spendly.
+Step 11 is the second of four steps (10–13) that add a savings plan to SaWings.
 Step 10 stored the **Income** and **Obligations**; this step lets the user record
 their **Goals**: one-off things they want to pay for by a chosen **Deadline**,
 each with a target amount, an **Importance** and a **Saved Amount** they have

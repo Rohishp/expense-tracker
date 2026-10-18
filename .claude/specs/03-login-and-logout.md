@@ -1,7 +1,7 @@
 # Spec: Login and Logout
 
 ## Overview
-This feature adds session-based authentication to Spendly. The `/login` route currently only
+This feature adds session-based authentication to SaWings. The `/login` route currently only
 renders `login.html` on GET; it needs a POST handler that checks the submitted email/password
 against the `users` table (created in Step 01) and, on success, starts a signed session. The
 `/logout` placeholder needs to clear that session. This is the first step that introduces the
@@ -11,7 +11,7 @@ depend on to know who the current user is.
 ## Depends on
 - Step 01 — Database setup (`get_db()`, `init_db()`, and the `users` table)
 - Step 02 — Registration (so real accounts exist to log in with; the seeded demo user
-  `demo@spendly.com` / `demo123` also works)
+  `demo@sawings.com` / `demo123` also works)
 
 ## Routes
 - `GET /login` — renders the login form (already implemented, unchanged) — public

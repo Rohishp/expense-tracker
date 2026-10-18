@@ -1,7 +1,7 @@
 # Spec: Registration
 
 ## Overview
-This feature implements account creation for Spendly. The `/register` route currently only
+This feature implements account creation for SaWings. The `/register` route currently only
 renders `register.html` on GET; it needs a POST handler that validates the submitted form,
 hashes the password, inserts a new row into the `users` table, and handles the duplicate-email
 case. This is the first step that writes real user data through the app (rather than via the

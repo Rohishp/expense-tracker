@@ -1,11 +1,11 @@
 ---
-description: Create a spec file and feature branch for the next Spendly step
+description: Create a spec file and feature branch for the next SaWings step
 argument-hint: "Step number and feature name e.g. 2 registration"
 allowed-tools: Read, Write, Glob, Bash(git:*)
 ---
 
 You are a senior developer spinning up a new feature for the
-Spendly expense tracker. Always follow the rules in CLAUDE.md.
+SaWings expense tracker. Always follow the rules in CLAUDE.md.
 
 User input: $ARGUMENTS
 
@@ -71,7 +71,7 @@ Generate a spec document with this exact structure:
 
 ## Overview
 One paragraph describing what this feature does and why
-it exists at this stage of the Spendly roadmap.
+it exists at this stage of the SaWings roadmap.
 
 ## Depends on
 Which previous steps this feature requires to be complete.

@@ -1,4 +1,4 @@
-"""SQLite data layer for Spendly.
+"""SQLite data layer for SaWings.
 
 No ORM — raw sqlite3 with parameterized queries only.
 """
@@ -189,7 +189,7 @@ def seed_db():
         password_hash = generate_password_hash("demo123")
         cursor = conn.execute(
             "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
-            ("Demo User", "demo@spendly.com", password_hash),
+            ("Demo User", "demo@sawings.com", password_hash),
         )
         user_id = cursor.lastrowid
 

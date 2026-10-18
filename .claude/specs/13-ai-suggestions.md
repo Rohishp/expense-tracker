@@ -1,7 +1,7 @@
 # Spec: AI Suggestions
 
 ## Overview
-Step 13 is the last of four steps (10–13) that add a savings plan to Spendly. Until
+Step 13 is the last of four steps (10–13) that add a savings plan to SaWings. Until
 now the user chose every Goal's **Importance** by hand and Goals had no
 **Dependencies**. This step adds both ideas fully, following ADR 0001: an LLM may
 only *suggest* a Goal's Importance and Dependencies, the user always confirms them,
@@ -54,7 +54,7 @@ A new `suggestions.py` at the project root keeps all LLM code out of `app.py` an
   `other_goals` is a list of the user's other Goals (id, name, target amount, Deadline).
 - It calls the Anthropic Messages API through the official `anthropic` package,
   with the key from the `ANTHROPIC_API_KEY` environment variable, the model from
-  `SPENDLY_LLM_MODEL` (default `claude-haiku-4-5-20251001`), a short timeout
+  `SAWINGS_LLM_MODEL` (default `claude-haiku-4-5-20251001`), a short timeout
   (10 seconds), no retries and a small `max_tokens`. The call is isolated in one
   function `_call_llm(prompt)` so tests can replace it.
 - The prompt asks for JSON only. The reply is **parsed and validated**, never
@@ -106,7 +106,7 @@ ids; a missing key means none).
 - `templates/goal_form.html`, `templates/goals.html`, `templates/plan.html` — see Templates
 - `static/css/goals.css` — small styles for the Dependency checkboxes and the suggestion notice (CSS variables only)
 - `requirements.txt` — add `anthropic`
-- `CLAUDE.md` — update the overview and architecture (steps 1–13 implemented; add `planner.py`, `suggestions.py`, the savings-plan routes, the `ANTHROPIC_API_KEY` / `SPENDLY_LLM_MODEL` variables, and that debug now defaults off)
+- `CLAUDE.md` — update the overview and architecture (steps 1–13 implemented; add `planner.py`, `suggestions.py`, the savings-plan routes, the `ANTHROPIC_API_KEY` / `SAWINGS_LLM_MODEL` variables, and that debug now defaults off)
 
 ## Files to create
 - `suggestions.py`

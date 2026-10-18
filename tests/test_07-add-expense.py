@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash
 
 import database.db as db
 
-DEMO_EMAIL = "demo@spendly.com"
+DEMO_EMAIL = "demo@sawings.com"
 DEMO_PASSWORD = "demo123"
 CATEGORIES = ["Food", "Transport", "Bills", "Health",
               "Entertainment", "Shopping", "Other"]

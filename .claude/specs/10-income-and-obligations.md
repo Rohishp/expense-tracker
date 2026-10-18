@@ -1,7 +1,7 @@
 # Spec: Income and Obligations
 
 ## Overview
-Step 10 is the first of four steps (10–13) that add a savings plan to Spendly.
+Step 10 is the first of four steps (10–13) that add a savings plan to SaWings.
 It gives the user two of the plan's inputs: a stable monthly **Income** and a
 list of **Obligations** (recurring essential costs such as rent or groceries,
 each with a fixed monthly amount typed by the user). Nothing is calculated yet;

@@ -59,7 +59,7 @@ def _call_llm(prompt):
         anthropic.Anthropic(api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=0)
     )
     message = client.messages.create(
-        model=os.environ.get("SPENDLY_LLM_MODEL", DEFAULT_MODEL),
+        model=os.environ.get("SAWINGS_LLM_MODEL", DEFAULT_MODEL),
         max_tokens=MAX_TOKENS,
         messages=[{"role": "user", "content": prompt}],
     )

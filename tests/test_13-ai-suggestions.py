@@ -16,7 +16,7 @@ import database.db as db
 import planner
 import suggestions
 
-DEMO_EMAIL = "demo@spendly.com"
+DEMO_EMAIL = "demo@sawings.com"
 DEMO_PASSWORD = "demo123"
 OTHER_EMAIL = "other@example.com"
 OTHER_PASSWORD = "otherpass1"
