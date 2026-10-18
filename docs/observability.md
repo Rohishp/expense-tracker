@@ -79,7 +79,7 @@ Limits: a subagent appears only once it finishes (an interrupted one is lost), s
 
 ## 4. Rules
 
-- **Never set `LANGSMITH_TRACING` on Railway.** The privacy page names Anthropic as the only third party that sees Goal data; tracing production would send that data to LangSmith too. Production is safe by construction: only `python app.py` loads `.env`, and gunicorn does not.
+- **Never set `LANGSMITH_TRACING` on Railway.** The privacy page names Anthropic and OpenAI as the only third parties that see Goal data; tracing production would send that data to LangSmith too. Production is safe by construction: only `python app.py` loads `.env`, and gunicorn does not.
 - **Tests never trace.** `tests/conftest.py` forces `LANGSMITH_TRACING=false`.
 - **Tracing is optional.** Without `langsmith` installed, or with the flag off, the code behaves exactly as before.
 

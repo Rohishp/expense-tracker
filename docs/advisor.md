@@ -25,6 +25,7 @@ Laptop become an Unreachable Goal, try a later Deadline, compare, then answer.
 | `advisor/loop.py` | The loop: model picks a tool, sees the result, repeats; `max_steps=8`; every step traced |
 | `advisor/openai_client.py` | OpenAI Chat Completions adapter, `temperature=0` (left out for `gpt-5*` models, which only accept the default) |
 | `advisor/apply.py` | The only write path, run after the user confirms; re-validates against fresh data and keeps a Goal's Dependencies |
+| `advisor/jobs.py` | Runs one question in a background thread (or inline in tests) and stores the answer in `advisor_runs`; never raises |
 | `advisor/evals.py` | 20 tasks over 8 fixtures (Dependencies, Saved Amounts, over-committed, no Income, Top-ups, injection, off-topic). Code-only graders: finished, verdict, outcome, collateral, warned, grounded, wording. Reports pass^1 and pass^k over `--runs`; every run's traces and scores are saved under `evals/results/` |
 | `tests/test_advisor.py` | Loop tests with a scripted fake model; every task's reference answer passes every grader; the graders catch the failures seen in real traces |
 
@@ -55,41 +56,41 @@ number that the question uses for something else: asked for "6000 euros for
 a trip", Income of 6000 passes. A prompt rule covers that case, and also
 Deadline and Importance edits to Goals the user did not mention.
 
-## Flask wiring (sketch, not yet in app.py)
+## How the app uses it (step 15, ADR 0003)
 
-```python
-from advisor.loop import run_advisor
-from advisor.tools import load_snapshot, ToolError
-from advisor.openai_client import make_openai_caller
-from advisor.apply import apply_confirmed
+One question takes about a minute (median 60 s, max 230 s in the eval
+traces), longer than gunicorn's 30 s worker timeout, so it runs in the
+background:
 
-call_model = make_openai_caller(os.environ["ADVISOR_MODEL"])
+1. `POST /advisor` checks the question (1–500 characters) and that
+   `_advisor_caller()` is configured (`OPENAI_API_KEY` and `ADVISOR_MODEL`).
+   `create_advisor_run` stores a `running` row, unless the user already has
+   one running or has asked `ADVISOR_DAILY_LIMIT` (10) questions in the last
+   24 hours; one `INSERT` checks both, so a double click cannot start two
+   runs. Then `advisor/jobs.py` runs `run_advisor` in a daemon thread
+   on a snapshot read in the request, and the user goes to
+   `/advisor/runs/<id>`.
+2. That page refreshes itself every 3 s while the run is `running`, then
+   shows the verdict, the summary and each proposed change as a sentence.
+   Any exception marks the run `failed` and logs only its type (an API
+   error message can quote part of the key). A run still `running` after
+   15 minutes is stale and shown as failed.
+3. `POST /advisor/runs/<id>/confirm` reads the changes from `advisor_runs`
+   (never from the form) and calls `apply_confirmed(..., run_id=id)`. In one
+   `BEGIN IMMEDIATE` transaction it claims the run (so it saves only once),
+   re-checks the changes against fresh data and writes them. Any error,
+   including a `ToolError` (the data changed since the answer), rolls back
+   everything, the claim too, so the user can confirm again.
 
-@app.route("/advisor", methods=["GET", "POST"])
-@login_required
-@csrf_protect
-def advisor():
-    result = None
-    if request.method == "POST":
-        result = run_advisor(request.form["question"],
-                             load_snapshot(session["user_id"]), call_model, date.today())
-        # Keep proposals server side; never trust changes posted back by the browser.
-        session["advisor_changes"] = result.proposed_changes
-    return render_template("advisor.html", result=result)
+The checks in `tools.py` accept only what the forms accept, with the limits
+from `database/db.py` (`MAX_AMOUNT`, `MAX_NAME_LENGTH`, `MAX_GOALS`,
+`MAX_OBLIGATIONS`, `MAX_DEADLINE_YEARS`): a model can propose anything, and
+the confirm saves what it proposed.
 
-@app.route("/advisor/confirm", methods=["POST"])
-@login_required
-@csrf_protect
-def advisor_confirm():
-    try:
-        apply_confirmed(session["user_id"], session.pop("advisor_changes", []))
-    except ToolError as exc:
-        flash(f"Your data changed since the advice was given: {exc}")
-    return redirect(url_for("plan"))
-```
-
-Flask's default session is a signed cookie (about 4 KB). That is enough for a
-few changes; move to a server-side store if proposals grow.
+Each model call times out after 90 s with no retries, so a run of 8 steps
+ends before it counts as stale. Tests set `ADVISOR_INLINE` and replace
+`_advisor_caller` with a scripted model, so they start no thread and make
+no network call.
 
 ## Not covered yet
 

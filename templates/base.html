@@ -32,6 +32,10 @@
                     <a href="{{ url_for('plan') }}"
                        class="nav-link{% if plan_nav_active %} active{% endif %}"
                        {% if plan_nav_active %}aria-current="page"{% endif %}>Plan</a>
+                    {% set advisor_nav_active = request.endpoint in ('advisor', 'advisor_run', 'advisor_confirm') %}
+                    <a href="{{ url_for('advisor') }}"
+                       class="nav-link{% if advisor_nav_active %} active{% endif %}"
+                       {% if advisor_nav_active %}aria-current="page"{% endif %}>Advisor</a>
                     <a href="{{ url_for('analytics') }}"
                        class="nav-link{% if request.endpoint == 'analytics' %} active{% endif %}"
                        {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}>Analytics</a>

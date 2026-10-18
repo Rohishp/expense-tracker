@@ -21,19 +21,31 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import planner
 import suggestions
+from advisor import jobs as advisor_jobs
+from advisor.apply import apply_confirmed
+from advisor.openai_client import make_openai_caller
+from advisor.tools import ToolError, load_snapshot
 from database import queries
 from database.db import (
     CATEGORIES,
     IMPORTANCE_LEVELS,
+    MAX_AMOUNT,
+    MAX_DEADLINE_YEARS,
+    MAX_GOALS,
+    MAX_NAME_LENGTH,
+    MAX_OBLIGATIONS,
     get_db,
     init_db,
     seed_db,
 )
 
 app = Flask(__name__)
-# Set SECRET_KEY in the environment for any real deployment; the fallback is
-# only for local development.
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+# Set SECRET_KEY in the environment for any real deployment. Without it each
+# process gets a random key: logins reset on restart, but nobody can sign a
+# session cookie with a key that is published in this repo.
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+if not os.environ.get("SECRET_KEY") and __name__ != "__main__":
+    app.logger.warning("SECRET_KEY is not set: using a random key, so logins reset on restart.")
 # Lax stops browsers sending the session cookie on cross-site POSTs.
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 # Tests turn this off so they can post forms without fetching a token first.
@@ -42,6 +54,10 @@ app.config["CSRF_ENABLED"] = True
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
 # Minimum seconds between Suggest clicks per session (tests set it to 0).
 app.config["SUGGEST_COOLDOWN_SECONDS"] = 3
+# Advisor runs go to a background thread; tests run them in the request.
+app.config["ADVISOR_INLINE"] = False
+# Advisor questions each account may ask in any 24 hours (each one is paid).
+app.config["ADVISOR_DAILY_LIMIT"] = 10
 
 with app.app_context():
     init_db()
@@ -299,11 +315,6 @@ def analytics():
 
 
 MAX_DESCRIPTION_LENGTH = 200
-MAX_AMOUNT = 10_000_000
-MAX_NAME_LENGTH = 60
-MAX_OBLIGATIONS = 100
-MAX_GOALS = 100
-MAX_DEADLINE_YEARS = 50
 # Every Plan loops over these, so they are capped like Goals (step 14 review).
 MAX_TOP_UPS = 100
 MAX_POT_AMOUNTS = 20
@@ -1148,10 +1159,195 @@ def lump_sum(id):
     )
 
 
+# ------------------------------------------------------------------ #
+# Advisor                                                             #
+# ------------------------------------------------------------------ #
+
+ADVISOR_QUESTION_MAX = 500
+ADVISOR_VERDICTS = {
+    "yes": "Yes, it fits",
+    "trade_off": "Fits with a trade-off",
+    "no": "Does not fit",
+}
+_GOAL_FIELDS = (
+    ("name", 'name "{}"', str),
+    ("target_amount", "target €{}", eur),
+    ("saved_amount", "Saved Amount €{}", eur),
+    ("deadline", "Deadline {}", str),
+    ("importance", "Importance {}", str),
+)
+
+
+def _advisor_caller():
+    """The model for advisor runs, or None when it is not configured.
+
+    The model name comes only from ADVISOR_MODEL. Tests replace this function.
+    """
+    model = os.environ.get("ADVISOR_MODEL", "").strip()
+    if not model or not os.environ.get("OPENAI_API_KEY"):
+        return None
+    return make_openai_caller(model)
+
+
+def _describe_change(change, goals_by_id, obligations_by_id):
+    """One plain sentence for a proposed change, using the current names."""
+    op = change["op"]
+
+    def named(kind, items, key):
+        item = items.get(change.get(key))
+        return f'{kind} "{item["name"]}"' if item else f"{kind} (no longer exists)"
+
+    if op == "add_goal":
+        text = (
+            f'Add Goal "{change["name"]}": €{eur(change["target_amount"])} '
+            f'by {change["deadline"]}, {change["importance"]}'
+        )
+        if change.get("saved_amount"):
+            text += f', Saved Amount €{eur(change["saved_amount"])}'
+        return text
+    if op == "update_goal":
+        fields = [label.format(fmt(change[k])) for k, label, fmt in _GOAL_FIELDS if k in change]
+        return f'Change {named("Goal", goals_by_id, "goal_id")}: {", ".join(fields)}'
+    if op == "remove_goal":
+        return f'Remove {named("Goal", goals_by_id, "goal_id")}'
+    if op == "set_income":
+        return f'Set Income to €{eur(change["amount"])}'
+    if op == "add_obligation":
+        return f'Add Obligation "{change["name"]}": €{eur(change["amount"])}'
+    if op == "update_obligation":
+        fields = []
+        if "name" in change:
+            fields.append(f'name "{change["name"]}"')
+        if "amount" in change:
+            fields.append(f'amount €{eur(change["amount"])}')
+        return f'Change {named("Obligation", obligations_by_id, "obligation_id")}: {", ".join(fields)}'
+    return f'Remove {named("Obligation", obligations_by_id, "obligation_id")}'
+
+
+@app.route("/advisor", methods=["GET", "POST"])
+@login_required
+@csrf_protect
+def advisor():
+    """Ask a what-if question. The run goes to the background; see advisor_run."""
+    user_id = session["user_id"]
+    queries.expire_stale_advisor_runs(user_id)
+    caller = _advisor_caller()
+    question = ""
+    error = None
+
+    if request.method == "POST":
+        question = request.form.get("question", "").strip()
+        if caller is None:
+            error = "The Advisor is unavailable right now."
+        elif not question:
+            error = "Please enter a question."
+        elif len(question) > ADVISOR_QUESTION_MAX:
+            error = f"Keep your question to {ADVISOR_QUESTION_MAX} characters or fewer."
+        else:
+            limit = app.config["ADVISOR_DAILY_LIMIT"]
+            run_id = queries.create_advisor_run(user_id, question, limit)
+            if run_id is None and queries.count_recent_advisor_runs(user_id) >= limit:
+                error = (
+                    f"You have asked {limit} questions in the last 24 hours. "
+                    "Try again later."
+                )
+            elif run_id is None:
+                error = "Your last question is still running. Wait for its answer first."
+            else:
+                advisor_jobs.start_run(
+                    run_id,
+                    user_id,
+                    question,
+                    load_snapshot(user_id),
+                    date.today(),
+                    caller,
+                    inline=app.config["ADVISOR_INLINE"],
+                )
+                return redirect(url_for("advisor_run", id=run_id))
+
+    return render_template(
+        "advisor.html",
+        available=caller is not None,
+        runs=queries.list_advisor_runs(user_id),
+        verdicts=ADVISOR_VERDICTS,
+        question=question,
+        question_max=ADVISOR_QUESTION_MAX,
+        error=error,
+    )
+
+
+@app.route("/advisor/runs/<int:id>")
+@login_required
+def advisor_run(id):
+    """One question: still thinking, the answer with its changes, or failed."""
+    user_id = session["user_id"]
+    queries.expire_stale_advisor_runs(user_id)
+    run = queries.get_advisor_run(id, user_id)
+    if run is None:
+        abort(404)
+
+    goals_by_id = {g["id"]: g for g in queries.list_goals(user_id)}
+    obligations_by_id = {o["id"]: o for o in queries.list_obligations(user_id)}
+    changes = [
+        _describe_change(c, goals_by_id, obligations_by_id)
+        for c in run["proposed_changes"]
+    ]
+    return render_template(
+        "advisor_run.html",
+        run=run,
+        changes=changes,
+        verdict=ADVISOR_VERDICTS.get(run["verdict"]),
+    )
+
+
+@app.route("/advisor/runs/<int:id>/confirm", methods=["POST"])
+@login_required
+@csrf_protect
+def advisor_confirm(id):
+    """Save a run's proposed changes (ADR 0003): read from the database, never
+    from the form, re-validated against fresh data, and saved together with
+    the run's claim in one transaction by apply_confirmed."""
+    user_id = session["user_id"]
+    run = queries.get_advisor_run(id, user_id)
+    if run is None:
+        abort(404)
+
+    if run["status"] != "done" or not run["proposed_changes"]:
+        flash("There are no changes to save.", "error")
+        return redirect(url_for("advisor_run", id=id))
+    try:
+        saved = apply_confirmed(user_id, run["proposed_changes"], run_id=id)
+    except ToolError:
+        # The ToolError text is written for the model, not the user.
+        flash(
+            "Your Income, Obligations or Goals changed since this answer, "
+            "so nothing was saved. Ask again.",
+            "error",
+        )
+        return redirect(url_for("advisor_run", id=id))
+    except Exception as exc:
+        # A value the checks missed; the transaction saved nothing. Only the
+        # error type is logged: a message can quote the data or a key.
+        app.logger.error("advisor confirm %s failed: %s", id, type(exc).__name__)
+        flash("These changes could not be saved, so nothing was saved. Ask again.", "error")
+        return redirect(url_for("advisor_run", id=id))
+    if not saved:
+        flash("These changes were already saved.", "error")
+        return redirect(url_for("advisor_run", id=id))
+
+    flash("Changes saved.", "success")
+    return redirect(url_for("plan"))
+
+
 if __name__ == "__main__":
     # Dev server only: gunicorn (Railway) never runs this block, so a local
     # .env, including LANGSMITH_TRACING, can never switch tracing on in production.
     from dotenv import load_dotenv
 
     load_dotenv()
+    # .env is loaded only now, after the module set a random key above.
+    if os.environ.get("SECRET_KEY"):
+        app.secret_key = os.environ["SECRET_KEY"]
+    else:
+        app.logger.warning("SECRET_KEY is not set: using a random key, so logins reset on restart.")
     app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1", port=5001)

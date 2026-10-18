@@ -2,12 +2,31 @@
 
 No Flask imports here — these are plain functions over sqlite3 rows so they
 can be unit-tested in isolation from the web layer. Each function opens its
-own connection via get_db() and closes it before returning.
+own connection via get_db() and closes it before returning. Those that take
+`conn` use the caller's connection instead and leave the commit to it, so the
+Advisor can save several changes in one transaction (advisor/apply.py).
 """
 
+import json
+from contextlib import contextmanager
 from datetime import datetime
 
 from database.db import get_db
+
+
+@contextmanager
+def _connection(conn=None):
+    """Yield `conn` (the caller commits), or a new connection that is
+    committed when the block succeeds and always closed."""
+    if conn is not None:
+        yield conn
+        return
+    conn = get_db()
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _date_clause(date_from, date_to):
@@ -239,20 +258,16 @@ def get_income(user_id):
         conn.close()
 
 
-def set_income(user_id, amount):
+def set_income(user_id, amount, conn=None):
     """Create or replace the user's monthly Income."""
-    conn = get_db()
-    try:
-        conn.execute(
+    with _connection(conn) as c:
+        c.execute(
             "INSERT INTO incomes (user_id, monthly_amount) VALUES (?, ?) "
             "ON CONFLICT(user_id) DO UPDATE SET "
             "monthly_amount = excluded.monthly_amount, "
             "updated_at = datetime('now')",
             (user_id, amount),
         )
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def list_obligations(user_id):
@@ -272,11 +287,10 @@ def list_obligations(user_id):
         conn.close()
 
 
-def get_obligation(obligation_id, user_id):
+def get_obligation(obligation_id, user_id, conn=None):
     """Return the Obligation as a dict if it belongs to `user_id`, else None."""
-    conn = get_db()
-    try:
-        row = conn.execute(
+    with _connection(conn) as c:
+        row = c.execute(
             "SELECT id, name, amount FROM obligations "
             "WHERE id = ? AND user_id = ?",
             (obligation_id, user_id),
@@ -288,51 +302,37 @@ def get_obligation(obligation_id, user_id):
             "name": row["name"],
             "amount": float(row["amount"]),
         }
-    finally:
-        conn.close()
 
 
-def create_obligation(user_id, name, amount):
+def create_obligation(user_id, name, amount, conn=None):
     """Insert an Obligation for `user_id` and return its new id."""
-    conn = get_db()
-    try:
-        cursor = conn.execute(
+    with _connection(conn) as c:
+        cursor = c.execute(
             "INSERT INTO obligations (user_id, name, amount) VALUES (?, ?, ?)",
             (user_id, name, amount),
         )
-        conn.commit()
         return cursor.lastrowid
-    finally:
-        conn.close()
 
 
-def update_obligation(obligation_id, user_id, name, amount):
+def update_obligation(obligation_id, user_id, name, amount, conn=None):
     """Update an Obligation owned by `user_id`. Return True if a row changed."""
-    conn = get_db()
-    try:
-        cursor = conn.execute(
+    with _connection(conn) as c:
+        cursor = c.execute(
             "UPDATE obligations SET name = ?, amount = ? "
             "WHERE id = ? AND user_id = ?",
             (name, amount, obligation_id, user_id),
         )
-        conn.commit()
         return cursor.rowcount > 0
-    finally:
-        conn.close()
 
 
-def delete_obligation(obligation_id, user_id):
+def delete_obligation(obligation_id, user_id, conn=None):
     """Delete an Obligation owned by `user_id`. Return True if a row was deleted."""
-    conn = get_db()
-    try:
-        cursor = conn.execute(
+    with _connection(conn) as c:
+        cursor = c.execute(
             "DELETE FROM obligations WHERE id = ? AND user_id = ?",
             (obligation_id, user_id),
         )
-        conn.commit()
         return cursor.rowcount > 0
-    finally:
-        conn.close()
 
 
 _GOAL_COLUMNS = "id, name, target_amount, saved_amount, deadline, importance"
@@ -414,24 +414,21 @@ def count_goals(user_id):
         conn.close()
 
 
-def get_goal(goal_id, user_id):
+def get_goal(goal_id, user_id, conn=None):
     """Return the Goal as a dict if it belongs to `user_id`, else None."""
-    conn = get_db()
-    try:
-        row = conn.execute(
+    with _connection(conn) as c:
+        row = c.execute(
             f"SELECT {_GOAL_COLUMNS} FROM goals WHERE id = ? AND user_id = ?",
             (goal_id, user_id),
         ).fetchone()
         if row is None:
             return None
-        dependencies = conn.execute(
+        dependencies = c.execute(
             "SELECT depends_on_goal_id FROM goal_dependencies "
             "WHERE goal_id = ? ORDER BY depends_on_goal_id",
             (goal_id,),
         ).fetchall()
         return _goal_to_dict(row, [d["depends_on_goal_id"] for d in dependencies])
-    finally:
-        conn.close()
 
 
 def create_goal(
@@ -442,21 +439,18 @@ def create_goal(
     deadline,
     importance,
     depends_on=(),
+    conn=None,
 ):
     """Insert a Goal for `user_id` and return its new id."""
-    conn = get_db()
-    try:
-        cursor = conn.execute(
+    with _connection(conn) as c:
+        cursor = c.execute(
             "INSERT INTO goals "
             "(user_id, name, target_amount, saved_amount, deadline, importance) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, name, target_amount, saved_amount, deadline, importance),
         )
-        _replace_dependencies(conn, cursor.lastrowid, user_id, depends_on)
-        conn.commit()
+        _replace_dependencies(c, cursor.lastrowid, user_id, depends_on)
         return cursor.lastrowid
-    finally:
-        conn.close()
 
 
 def update_goal(
@@ -468,11 +462,11 @@ def update_goal(
     deadline,
     importance,
     depends_on=(),
+    conn=None,
 ):
     """Update a Goal owned by `user_id`. Return True if a row changed."""
-    conn = get_db()
-    try:
-        cursor = conn.execute(
+    with _connection(conn) as c:
+        cursor = c.execute(
             "UPDATE goals SET name = ?, target_amount = ?, saved_amount = ?, "
             "deadline = ?, importance = ? WHERE id = ? AND user_id = ?",
             (
@@ -486,29 +480,22 @@ def update_goal(
             ),
         )
         if cursor.rowcount > 0:
-            _replace_dependencies(conn, goal_id, user_id, depends_on)
-        conn.commit()
+            _replace_dependencies(c, goal_id, user_id, depends_on)
         return cursor.rowcount > 0
-    finally:
-        conn.close()
 
 
-def delete_goal(goal_id, user_id):
+def delete_goal(goal_id, user_id, conn=None):
     """Delete a Goal owned by `user_id`. Return True if a row was deleted.
 
     Rows in goal_dependencies and top_ups that mention it go too
     (ON DELETE CASCADE).
     """
-    conn = get_db()
-    try:
-        cursor = conn.execute(
+    with _connection(conn) as c:
+        cursor = c.execute(
             "DELETE FROM goals WHERE id = ? AND user_id = ?",
             (goal_id, user_id),
         )
-        conn.commit()
         return cursor.rowcount > 0
-    finally:
-        conn.close()
 
 
 def add_lump_sum(goal_id, user_id, amount):
@@ -679,3 +666,146 @@ def create_redirect(user_id, start_date, top_ups, pot_amount=None, still_fits=No
         return inserted
     finally:
         conn.close()
+
+
+# A run still 'running' after this long is stale: the process restarted or
+# its thread died. The model call timeout keeps a live run well under it.
+_STALE_RUN = "-15 minutes"
+_ADVISOR_RUN_COLUMNS = (
+    "id, question, status, verdict, summary, proposed_changes, "
+    "stopped_reason, created_at, finished_at, applied_at"
+)
+
+
+def _advisor_run_to_dict(row):
+    run = dict(row)
+    run["proposed_changes"] = json.loads(run["proposed_changes"])
+    return run
+
+
+def create_advisor_run(user_id, question, daily_limit):
+    """Store a new running advisor question for `user_id` and return its id.
+
+    Returns None, and stores nothing, while the user has another run still
+    running (and not stale), or has already asked `daily_limit` questions in
+    the last 24 hours. One statement, so a double click cannot start two
+    paid runs or slip past the limit.
+    """
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO advisor_runs (user_id, question) SELECT ?, ? "
+            "WHERE NOT EXISTS (SELECT 1 FROM advisor_runs WHERE user_id = ? "
+            "AND status = 'running' AND created_at > datetime('now', ?)) "
+            "AND (SELECT COUNT(*) FROM advisor_runs WHERE user_id = ? "
+            "AND created_at > datetime('now', '-1 day')) < ?",
+            (user_id, question, user_id, _STALE_RUN, user_id, daily_limit),
+        )
+        conn.commit()
+        return cursor.lastrowid if cursor.rowcount > 0 else None
+    finally:
+        conn.close()
+
+
+def count_recent_advisor_runs(user_id):
+    """Return how many advisor questions `user_id` asked in the last 24 hours."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS count FROM advisor_runs "
+            "WHERE user_id = ? AND created_at > datetime('now', '-1 day')",
+            (user_id,),
+        ).fetchone()
+        return row["count"]
+    finally:
+        conn.close()
+
+
+def get_advisor_run(run_id, user_id):
+    """Return the advisor run as a dict if it belongs to `user_id`, else None."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            f"SELECT {_ADVISOR_RUN_COLUMNS} FROM advisor_runs "
+            "WHERE id = ? AND user_id = ?",
+            (run_id, user_id),
+        ).fetchone()
+        return None if row is None else _advisor_run_to_dict(row)
+    finally:
+        conn.close()
+
+
+def list_advisor_runs(user_id, limit=5):
+    """Return the user's most recent advisor runs, newest first."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            f"SELECT {_ADVISOR_RUN_COLUMNS} FROM advisor_runs "
+            "WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+        return [_advisor_run_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def expire_stale_advisor_runs(user_id):
+    """Mark the user's stale running advisor runs as failed."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE advisor_runs SET status = 'failed', stopped_reason = 'error', "
+            "finished_at = datetime('now') "
+            "WHERE user_id = ? AND status = 'running' "
+            "AND created_at <= datetime('now', ?)",
+            (user_id, _STALE_RUN),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def finish_advisor_run(run_id, user_id, verdict, summary, changes, stopped_reason):
+    """Store a finished run's answer. A run already expired stays failed."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE advisor_runs SET status = 'done', verdict = ?, summary = ?, "
+            "proposed_changes = ?, stopped_reason = ?, finished_at = datetime('now') "
+            "WHERE id = ? AND user_id = ? AND status = 'running'",
+            (verdict, summary, json.dumps(changes), stopped_reason, run_id, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def fail_advisor_run(run_id, user_id):
+    """Mark a running advisor run as failed."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE advisor_runs SET status = 'failed', stopped_reason = 'error', "
+            "finished_at = datetime('now') "
+            "WHERE id = ? AND user_id = ? AND status = 'running'",
+            (run_id, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def claim_advisor_run(run_id, user_id, conn=None):
+    """Mark a done run's changes as saved. True only for the first claim.
+
+    One UPDATE, so two confirm requests for the same run cannot both win.
+    advisor/apply.py claims in the same transaction as the writes, so a
+    failed save leaves the run unclaimed.
+    """
+    with _connection(conn) as c:
+        cursor = c.execute(
+            "UPDATE advisor_runs SET applied_at = datetime('now') "
+            "WHERE id = ? AND user_id = ? AND status = 'done' AND applied_at IS NULL",
+            (run_id, user_id),
+        )
+        return cursor.rowcount > 0

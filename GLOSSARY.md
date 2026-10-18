@@ -67,3 +67,7 @@ _Avoid_: Failed goal, overdue goal
 **Plan**:
 A hypothetical split of Income across Obligations and Goals. It does not alter recorded Expenses.
 _Avoid_: Budget, allocation
+
+**Advisor**:
+The AI helper that answers the user's what-if questions about their Income, Obligations and Goals by trying changes on the Plan, and proposes changes that are only saved once the user confirms them.
+_Avoid_: Chatbot, assistant, AI coach

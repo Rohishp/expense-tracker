@@ -7,12 +7,17 @@ def make_openai_caller(model, temperature=0):
     temperature=0 for the same reason as the cover letter agent: repeated
     runs on the same question should take the same path. gpt-5* models only
     accept the default temperature, so it is left out for them.
+
+    Each call times out after 90 s with no retries (the SDK defaults are 600 s
+    and 2), so 8 steps stay under the app's 15-minute stale-run limit. The
+    longest single call in the eval traces took 70 s.
     """
     from openai import OpenAI
 
     from advisor.tracing import wrap_client
 
-    client = wrap_client(OpenAI())  # no-op unless tracing is on
+    # no-op unless tracing is on
+    client = wrap_client(OpenAI(timeout=90, max_retries=0))
     extra = {} if model.startswith("gpt-5") else {"temperature": temperature}
 
     def call_model(messages, tools):

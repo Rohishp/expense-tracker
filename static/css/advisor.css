@@ -1,0 +1,126 @@
+/* ------------------------------------------------------------------ */
+/* Advisor (layered on add_expense.css)                                */
+/* ------------------------------------------------------------------ */
+
+.advisor-container {
+    max-width: 640px;
+}
+
+.advisor-notice {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    color: var(--accent-2);
+    background: var(--accent-2-light);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+}
+
+.advisor-unavailable {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    color: var(--ink-muted);
+    background: var(--paper-warm);
+    border-radius: var(--radius-sm);
+}
+
+.advisor-question {
+    min-height: 5rem;
+    resize: vertical;
+    font-family: var(--font-body);
+}
+
+.advisor-container .btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.advisor-asked {
+    overflow-wrap: anywhere;
+}
+
+.advisor-thinking {
+    color: var(--ink-muted);
+}
+
+.advisor-verdict {
+    display: inline-block;
+    margin-bottom: 1rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.advisor-verdict-yes {
+    color: var(--accent);
+    background: var(--accent-light);
+}
+
+.advisor-verdict-trade_off {
+    color: var(--accent-2);
+    background: var(--accent-2-light);
+}
+
+.advisor-verdict-no {
+    color: var(--danger);
+    background: var(--danger-light);
+}
+
+.advisor-summary {
+    margin-bottom: 1.5rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.advisor-heading {
+    margin: 2rem 0 0.75rem;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--ink);
+}
+
+.advisor-changes {
+    margin: 0 0 1.5rem;
+    padding-left: 1.25rem;
+    color: var(--ink-soft);
+}
+
+.advisor-changes li {
+    margin-bottom: 0.4rem;
+}
+
+.advisor-saved {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.advisor-runs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.advisor-run-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.advisor-run-item a {
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+.advisor-run-status {
+    flex-shrink: 0;
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+}
+
+.advisor-back {
+    margin-top: 1.5rem;
+}

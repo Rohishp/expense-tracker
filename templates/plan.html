@@ -14,6 +14,8 @@
 
         <h1 class="obligations-title">Plan</h1>
 
+        <p class="plan-advisor-link"><a href="{{ url_for('advisor') }}">Ask the Advisor a what-if question</a></p>
+
         {% if plan is none %}
         <p class="obligations-empty">Set your Income to see your Plan. <a href="{{ url_for('income') }}">Set Income</a></p>
         {% else %}
