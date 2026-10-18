@@ -1,4 +1,4 @@
-"""SQLite data layer for Spendly.
+"""SQLite data layer for SaWings.
 
 No ORM — raw sqlite3 with parameterized queries only.
 """
@@ -20,6 +20,14 @@ CATEGORIES = [
 ]
 
 IMPORTANCE_LEVELS = ["Must-have", "Should-have", "Nice-to-have"]
+
+# Limits for Income, Obligations and Goals, checked by the forms in app.py
+# and by the Advisor's checks (advisor/tools.py), so both accept the same data.
+MAX_AMOUNT = 10_000_000
+MAX_NAME_LENGTH = 60
+MAX_OBLIGATIONS = 100
+MAX_GOALS = 100
+MAX_DEADLINE_YEARS = 50
 
 
 def get_db():
@@ -138,6 +146,24 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS advisor_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                question TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'running',
+                verdict TEXT,
+                summary TEXT,
+                proposed_changes TEXT NOT NULL DEFAULT '[]',
+                stopped_reason TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                finished_at TEXT,
+                applied_at TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -163,7 +189,7 @@ def seed_db():
         password_hash = generate_password_hash("demo123")
         cursor = conn.execute(
             "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
-            ("Demo User", "demo@spendly.com", password_hash),
+            ("Demo User", "demo@sawings.com", password_hash),
         )
         user_id = cursor.lastrowid
 

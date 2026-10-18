@@ -195,7 +195,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=3, help="runs per case (pass^k uses k = runs)")
     parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--model", default="", help="sets SPENDLY_LLM_MODEL for this run")
+    parser.add_argument("--model", default="", help="sets SAWINGS_LLM_MODEL for this run")
     parser.add_argument("--only", default="", help="comma-separated case ids")
     parser.add_argument("--out", default="", help="write the traces here instead of evals/results/suggestions/")
     parser.add_argument("--note", default="", help="what this run tests, saved in runs.csv")
@@ -204,13 +204,13 @@ def main():
 
     load_dotenv()
     if args.model:
-        os.environ["SPENDLY_LLM_MODEL"] = args.model
+        os.environ["SAWINGS_LLM_MODEL"] = args.model
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise SystemExit("ANTHROPIC_API_KEY is not set (add it to .env).")
 
     import suggestions
 
-    model = os.environ.get("SPENDLY_LLM_MODEL", suggestions.DEFAULT_MODEL)
+    model = os.environ.get("SAWINGS_LLM_MODEL", suggestions.DEFAULT_MODEL)
     wanted = {i for i in args.only.split(",") if i}
     tasks = [(c, run) for c in CASES if not wanted or c["id"] in wanted
              for run in range(args.runs)]
@@ -222,7 +222,7 @@ def main():
         suggestion = suggestions.suggest(
             goal["name"], goal["target_amount"], goal["deadline"], case["others"],
             **run_extra({"case": case["id"], "run": run,
-                         "model": os.environ.get("SPENDLY_LLM_MODEL", "default")}, ["eval"]))
+                         "model": os.environ.get("SAWINGS_LLM_MODEL", "default")}, ["eval"]))
         return case, run, suggestion, time.perf_counter() - started
 
     results, latencies = {}, []

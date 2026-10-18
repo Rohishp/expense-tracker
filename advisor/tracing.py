@@ -1,8 +1,8 @@
 """Optional LangSmith tracing for the app's LLM code (advisor and suggestions).
 
 Sends nothing unless `langsmith` is installed AND LANGSMITH_TRACING=true.
-Keep it off in production: the privacy page names Anthropic as the only
-third party that sees Goal data (see docs/observability.md).
+Keep it off in production: the privacy page names Anthropic and OpenAI as
+the only third parties that see Goal data (see docs/observability.md).
 """
 
 try:

@@ -1,4 +1,4 @@
-# Spendly: progress and decisions
+# SaWings: progress and decisions
 
 How the app grew, step by step, and what led to each change. Sources:
 - the git history and the step specs in `.claude/specs/` (the "why" for steps

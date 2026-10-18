@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Plan — Spendly{% endblock %}
+{% block title %}Plan — SaWings{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/obligations.css') }}">
@@ -13,6 +13,8 @@
     <div class="obligations-container">
 
         <h1 class="obligations-title">Plan</h1>
+
+        <p class="plan-advisor-link"><a href="{{ url_for('advisor') }}">Ask the Advisor a what-if question</a></p>
 
         {% if plan is none %}
         <p class="obligations-empty">Set your Income to see your Plan. <a href="{{ url_for('income') }}">Set Income</a></p>

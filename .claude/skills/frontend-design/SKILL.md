@@ -1,14 +1,14 @@
 ---
-name: spendly-ui-designer
-description: Designs and generates modern, production-ready UI for Spendly, a personal expense tracker built on Flask + Jinja2 + vanilla CSS (repo - https://github.com/campusx-official/spendly). Produces clean fintech-style pages and components - cards, forms, tables, dashboards, modals - with consistent spacing, soft shadows, rounded corners, and Lucide icons. Use this skill whenever the user asks to design, build, create, redesign, improve, or style any Spendly page, screen, section, or component - including phrasings like "design the X page", "create UI for X", "build a component for X", "make the X look better", "redesign X", or any request about Spendly's frontend, layout, CSS, or visual polish - even when Spendly isn't named explicitly if the conversation context is clearly about it.
+name: sawings-ui-designer
+description: Designs and generates modern, production-ready UI for SaWings, a personal expense tracker built on Flask + Jinja2 + vanilla CSS (repo - https://github.com/Rohishp/expense-tracker). Produces clean fintech-style pages and components - cards, forms, tables, dashboards, modals - with consistent spacing, soft shadows, rounded corners, and Lucide icons. Use this skill whenever the user asks to design, build, create, redesign, improve, or style any SaWings page, screen, section, or component - including phrasings like "design the X page", "create UI for X", "build a component for X", "make the X look better", "redesign X", or any request about SaWings's frontend, layout, CSS, or visual polish - even when SaWings isn't named explicitly if the conversation context is clearly about it.
 disable-model-invocation: false
 ---
 
-# Spendly UI Designer
+# SaWings UI Designer
 
-You are designing frontend UI for **Spendly**, a personal expense tracker. Spendly is a Flask app with server-rendered Jinja2 templates, vanilla CSS, and a sprinkle of vanilla JS. The goal of this skill is to help you generate UI that feels like it belongs in a polished, modern fintech product - not generic bootstrap-era output, and not React/Tailwind output that doesn't match the stack.
+You are designing frontend UI for **SaWings**, a personal expense tracker. SaWings is a Flask app with server-rendered Jinja2 templates, vanilla CSS, and a sprinkle of vanilla JS. The goal of this skill is to help you generate UI that feels like it belongs in a polished, modern fintech product - not generic bootstrap-era output, and not React/Tailwind output that doesn't match the stack.
 
-## What Spendly's stack looks like
+## What SaWings's stack looks like
 
 - **Backend:** Flask (`app.py`), SQLite or similar (`database/`)
 - **Templates:** Jinja2 in `templates/` (e.g. `base.html`, `dashboard.html`, `add_expense.html`)
@@ -20,7 +20,7 @@ Generate output that fits this stack. Do not introduce React, Vue, Tailwind, sha
 
 ## Before you design: check what already exists
 
-If the user's project files are available (e.g. they've shared the repo, uploaded files, or you're inside the codebase), open `base.html`, the main CSS file, and one or two existing templates before generating anything new. The goal is *consistency* - Spendly should feel like one coherent product, not a collage.
+If the user's project files are available (e.g. they've shared the repo, uploaded files, or you're inside the codebase), open `base.html`, the main CSS file, and one or two existing templates before generating anything new. The goal is *consistency* - SaWings should feel like one coherent product, not a collage.
 
 Specifically, look for and reuse:
 
@@ -32,7 +32,7 @@ Specifically, look for and reuse:
 
 If you can't see the existing files and the request is non-trivial, ask the user to share a screenshot or paste a relevant template before you generate. One screenshot of the existing dashboard saves three rounds of revision.
 
-## The Spendly design language
+## The SaWings design language
 
 When you have no existing reference to follow, default to this. It's a clean, fintech-leaning aesthetic - close in spirit to Linear, Notion, or modern banking apps.
 
@@ -76,7 +76,7 @@ And call `lucide.createIcons()` after the DOM is ready (and after any dynamic DO
 
 Size icons via CSS with `width` and `height` on the `<svg>` (after Lucide replaces the `<i>`) or wrap in a span with the size you want. Prefer 16px for inline with text, 20px for buttons, 24px for section headers.
 
-Pick icons that carry meaning. A few Spendly-appropriate defaults:
+Pick icons that carry meaning. A few SaWings-appropriate defaults:
 - Expense/spend: `arrow-down-right`, `shopping-bag`, `credit-card`
 - Income: `arrow-up-right`, `wallet`, `trending-up`
 - Budget: `target`, `pie-chart`

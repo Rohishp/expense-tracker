@@ -7,13 +7,24 @@ planner.plan(), so the LLM never does money arithmetic (docs/adr/0001).
 
 import copy
 import json
+import math
 import re
-from datetime import date
+from datetime import date, timedelta
 
 import planner
 from advisor.tracing import traceable
+from database.db import (
+    MAX_AMOUNT,
+    MAX_DEADLINE_YEARS,
+    MAX_GOALS,
+    MAX_NAME_LENGTH,
+    MAX_OBLIGATIONS,
+)
 
 IMPORTANCE_LEVELS = list(planner.IMPORTANCE_ORDER)
+# A final answer is stored and shown to the user; keep it to a readable size.
+MAX_SUMMARY_LENGTH = 4000
+MAX_PROPOSED_CHANGES = 10
 # The fields each op reads. Any other field is rejected, not ignored: in real
 # traces the model set a Goal's "amount" to stop saving for it, the planner
 # never saw it, and the model told the user nothing would change.
@@ -151,10 +162,30 @@ def _find(items, item_id, label):
     raise ToolError(message)
 
 
+# The checks below accept only what the app's own forms accept: the same
+# limits (database/db.py), so a confirmed change can always be saved.
+
+
 def _positive(value, field, allow_zero=False):
-    if not isinstance(value, (int, float)) or value < 0 or (value == 0 and not allow_zero):
+    # bool is an int in Python, and JSON's NaN and Infinity parse as floats.
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value < 0
+        or (value == 0 and not allow_zero)
+    ):
         raise ToolError(f"{field} must be a {'non-negative' if allow_zero else 'positive'} number.")
+    if value > MAX_AMOUNT:
+        raise ToolError(f"{field} must be at most {MAX_AMOUNT}.")
     return float(value)
+
+
+def _check_name(name):
+    if not isinstance(name, str) or not name.strip():
+        raise ToolError("name is required.")
+    if len(name) > MAX_NAME_LENGTH:
+        raise ToolError(f"name must be {MAX_NAME_LENGTH} characters or fewer.")
 
 
 def _check_goal(goal, today):
@@ -168,10 +199,11 @@ def _check_goal(goal, today):
         raise ToolError("deadline must be YYYY-MM-DD.")
     if deadline <= today:
         raise ToolError("deadline must be after today.")
+    if deadline > today + timedelta(days=365 * MAX_DEADLINE_YEARS):
+        raise ToolError(f"deadline must be within {MAX_DEADLINE_YEARS} years.")
     if goal["importance"] not in IMPORTANCE_LEVELS:
         raise ToolError(f"importance must be one of {IMPORTANCE_LEVELS}.")
-    if not goal.get("name"):
-        raise ToolError("name is required.")
+    _check_name(goal.get("name"))
 
 
 def _check_fields(op, change):
@@ -195,6 +227,8 @@ def apply_changes(snapshot, changes, today):
     state = copy.deepcopy(snapshot)
     next_id = 1 + max([g["id"] for g in state["goals"]] + [0])
     for change in changes:
+        if not isinstance(change, dict):
+            raise ToolError("Each change must be an object with an op.")
         op = change.get("op")
         _check_fields(op, change)
         if op == "add_goal":
@@ -208,6 +242,8 @@ def apply_changes(snapshot, changes, today):
             }
             _check_goal(goal, today)
             state["goals"].append(goal)
+            if len(state["goals"]) > MAX_GOALS:
+                raise ToolError(f"The user can have at most {MAX_GOALS} Goals.")
             next_id += 1
         elif op == "update_goal":
             goal = _find(state["goals"], change.get("goal_id"), "Goal")
@@ -220,15 +256,17 @@ def apply_changes(snapshot, changes, today):
         elif op == "set_income":
             state["income"] = _positive(change.get("amount"), "amount")
         elif op == "add_obligation":
-            if not change.get("name"):
-                raise ToolError("name is required.")
+            _check_name(change.get("name"))
             new_id = 1 + max([o["id"] for o in state["obligations"]] + [0])
             state["obligations"].append(
                 {"id": new_id, "name": change["name"], "amount": _positive(change.get("amount"), "amount")}
             )
+            if len(state["obligations"]) > MAX_OBLIGATIONS:
+                raise ToolError(f"The user can have at most {MAX_OBLIGATIONS} Obligations.")
         elif op == "update_obligation":
             obligation = _find(state["obligations"], change.get("obligation_id"), "Obligation")
             if "name" in change:
+                _check_name(change["name"])
                 obligation["name"] = change["name"]
             if "amount" in change:
                 obligation["amount"] = _positive(change["amount"], "amount")
@@ -390,6 +428,8 @@ def dispatch(name, raw_arguments, snapshot, today, question=""):
         args = json.loads(raw_arguments or "{}")
     except json.JSONDecodeError:
         return {"error": "Arguments were not valid JSON."}, False
+    if not isinstance(args, dict):
+        return {"error": "Arguments must be a JSON object."}, False
     try:
         if name == "get_finances":
             result = {"today": today.isoformat(), "obligations": snapshot["obligations"]}
@@ -408,6 +448,8 @@ def dispatch(name, raw_arguments, snapshot, today, question=""):
             proposed = args.get("proposed_changes") or []
             if not isinstance(proposed, list):
                 raise ToolError("proposed_changes must be a list.")
+            if len(proposed) > MAX_PROPOSED_CHANGES:
+                raise ToolError(f"Propose at most {MAX_PROPOSED_CHANGES} changes.")
             # Reject proposals that would not even validate, so the user
             # is never shown a change the app would refuse to save.
             apply_changes(snapshot, proposed, today)
@@ -418,6 +460,8 @@ def dispatch(name, raw_arguments, snapshot, today, question=""):
             summary = args.get("summary")
             if not isinstance(summary, str) or not summary.strip():
                 raise ToolError("summary is required: explain the answer to the user.")
+            if len(summary) > MAX_SUMMARY_LENGTH:
+                raise ToolError(f"summary must be {MAX_SUMMARY_LENGTH} characters or fewer.")
             return {"verdict": args["verdict"], "summary": summary,
                     "proposed_changes": proposed}, True
         return {"error": f"Unknown tool {name!r}."}, False

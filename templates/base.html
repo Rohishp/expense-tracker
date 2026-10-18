@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Spendly{% endblock %}</title>
+    <title>{% block title %}SaWings{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
         <div class="nav-inner">
             <a href="{{ url_for('landing') }}" class="nav-brand">
                 <span class="brand-icon">◈</span>
-                <span class="brand-name">Spendly</span>
+                <span class="brand-name">SaWings</span>
             </a>
             <div class="nav-links">
                 {% if session.user_id %}
@@ -32,6 +32,10 @@
                     <a href="{{ url_for('plan') }}"
                        class="nav-link{% if plan_nav_active %} active{% endif %}"
                        {% if plan_nav_active %}aria-current="page"{% endif %}>Plan</a>
+                    {% set advisor_nav_active = request.endpoint in ('advisor', 'advisor_run', 'advisor_confirm') %}
+                    <a href="{{ url_for('advisor') }}"
+                       class="nav-link{% if advisor_nav_active %} active{% endif %}"
+                       {% if advisor_nav_active %}aria-current="page"{% endif %}>Advisor</a>
                     <a href="{{ url_for('analytics') }}"
                        class="nav-link{% if request.endpoint == 'analytics' %} active{% endif %}"
                        {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}>Analytics</a>
@@ -57,7 +61,7 @@
     <footer class="footer">
         <div class="footer-inner">
             <span class="brand-icon">◈</span>
-            <span class="footer-name">Spendly</span>
+            <span class="footer-name">SaWings</span>
             <p class="footer-copy">Track every euro. Own your finances.</p>
             <a href="{{ url_for('terms') }}">Terms and Conditions</a>
             <a href="{{ url_for('privacy') }}">Privacy Policy</a>

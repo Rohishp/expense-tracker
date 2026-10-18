@@ -4,7 +4,7 @@ import database.db as db
 from database import queries
 from werkzeug.security import generate_password_hash
 
-DEMO_EMAIL = "demo@spendly.com"
+DEMO_EMAIL = "demo@sawings.com"
 DEMO_PASSWORD = "demo123"
 DEMO_TOTAL_SPENT = 205.74  # sum of the 8 seeded expense amounts
 DEMO_TRANSACTION_COUNT = 8

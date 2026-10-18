@@ -12,3 +12,6 @@ traces/
 .claude/settings.local.json
 .claude/langsmith.json
 traces*.jsonl
+
+# session-story pages hold full prompts and diffs; this repo is public
+.session-stories/

@@ -1,6 +1,6 @@
 ---
 description: Runs parallel security and quality code 
-  review for a specific Spendly feature. Pass the spec 
+  review for a specific SaWings feature. Pass the spec 
   name as argument e.g. /code-review-feature 03-login
 allowed-tools: Bash(git diff), Bash(git diff --staged)
 ---
@@ -30,7 +30,7 @@ running code review."
 Invoke both subagents simultaneously with the same 
 context:
 
-**spendly-security-reviewer** receives:
+**sawings-security-reviewer** receives:
 - The combined diff from the pre-flight check
 - Spec file for context: `.claude/specs/$ARGUMENTS.md`
 - Source files to reference: `app.py` and 
@@ -39,7 +39,7 @@ context:
   security vulnerabilities. Do not comment on quality 
   or style.
 
-**spendly-quality-reviewer** receives:
+**sawings-quality-reviewer** receives:
 - The combined diff from the pre-flight check
 - Spec file for context: `.claude/specs/$ARGUMENTS.md`
 - Source files to reference: `app.py`, `database/` 
@@ -64,9 +64,9 @@ finding with both perspectives noted.
 Structure the combined report as:
 Code Review Report — $ARGUMENTS
 Security Findings
-[spendly-security-reviewer output]
+[sawings-security-reviewer output]
 Quality Findings
-[spendly-quality-reviewer output]
+[sawings-quality-reviewer output]
 Combined Action Plan
 Ordered checklist of everything that needs to be fixed,
 prioritized by severity:

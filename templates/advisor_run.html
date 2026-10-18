@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Advisor — SaWings{% endblock %}
+
+{% block head %}
+{% if run.status == 'running' %}
+<meta http-equiv="refresh" content="3">
+{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/advisor.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="expense-form-section">
+    <div class="expense-form-container advisor-container">
+
+        <div class="expense-form-header">
+            <h1 class="expense-form-title">Advisor</h1>
+            <p class="expense-form-subtitle advisor-asked">{{ run.question }}</p>
+        </div>
+
+        <div class="expense-form-card">
+            {% if run.status == 'running' %}
+            <p class="advisor-thinking" role="status">Thinking… this usually takes about a minute.</p>
+            {% elif run.status == 'failed' %}
+            <div class="auth-error">The Advisor could not answer. Try asking again.</div>
+            {% else %}
+                {% if verdict %}
+                <p class="advisor-verdict advisor-verdict-{{ run.verdict }}">{{ verdict }}</p>
+                {% endif %}
+                <p class="advisor-summary">{{ run.summary }}</p>
+
+                {% if changes %}
+                <h2 class="advisor-heading">Proposed changes</h2>
+                <ul class="advisor-changes">
+                    {% for change in changes %}
+                    <li>{{ change }}</li>
+                    {% endfor %}
+                </ul>
+
+                {% if run.applied_at %}
+                <p class="advisor-saved">These changes were saved.</p>
+                {% else %}
+                <p class="advisor-notice">Answers come from AI and can be wrong. Check these changes before you confirm.</p>
+                <form method="POST" action="{{ url_for('advisor_confirm', id=run.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="expense-form-actions">
+                        <button type="submit" class="btn-submit">Confirm and save</button>
+                        <a href="{{ url_for('advisor') }}" class="btn-ghost">Not now</a>
+                    </div>
+                </form>
+                {% endif %}
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <p class="advisor-back"><a href="{{ url_for('advisor') }}">Ask another question</a></p>
+
+    </div>
+</section>
+{% endblock %}

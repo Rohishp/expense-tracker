@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% set editing = obligation_id is not none %}
-{% block title %}{{ "Edit" if editing else "Add" }} Obligation — Spendly{% endblock %}
+{% block title %}{{ "Edit" if editing else "Add" }} Obligation — SaWings{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/add_expense.css') }}">

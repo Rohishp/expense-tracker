@@ -42,6 +42,10 @@
     color: var(--ink-faint);
 }
 
+.plan-advisor-link {
+    margin-bottom: 1.5rem;
+}
+
 .plan-top-up {
     margin-top: 0.25rem;
     color: var(--accent);
