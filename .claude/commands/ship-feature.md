@@ -1,6 +1,6 @@
 ---
 description: Commit, push, create PR, merge, and clean up after a feature is complete
-allowed-tools: Read, Bash, mcp__github__create_pull_request, mcp__github__merge_pull_request, mcp__github__delete_branch
+allowed-tools: Read, Bash, Edit(.session-stories/**), mcp__github__create_pull_request, mcp__github__merge_pull_request, mcp__github__delete_branch
 ---
 
 ## Step 1 — Identify current branch
@@ -46,7 +46,29 @@ git push -u origin CURRENT_BRANCH
 ```
 Report: "✓ Pushed — CURRENT_BRANCH"
 
-## Step 5 — Create PR via GitHub MCP
+## Step 5 — Export the session story
+Shipping never depends on this step. If the session-story skill is not
+installed or any command below fails, report
+"⚠ Session story skipped — <reason>", leave its section out of the PR and
+go to Step 6.
+
+1. Follow steps 1–3 of the session-story skill
+   (`$HOME/.claude/skills/session-story/SKILL.md`): extract the current
+   session to `.session-stories/story.json` with `--brief`, write the
+   summaries and report into it, and validate with `--strict`. Skip its
+   render step.
+2. Export the PR summary:
+   ```bash
+   node "$HOME/.claude/skills/session-story/bin/story.mjs" export .session-stories/story.json -o .session-stories/pr.md
+   ```
+3. Read `.session-stories/pr.md`. The repo is public: remove any line that
+   holds a secret or key, an email address other than demo@sawings.com, or
+   an absolute local path. Store the rest, without its first line (the
+   `# title`), as SESSION_STORY.
+
+Report: "✓ Session story exported"
+
+## Step 6 — Create PR via GitHub MCP
 Use the GitHub MCP server to create a pull request
 from CURRENT_BRANCH into main.
 
@@ -69,30 +91,36 @@ mark every item as checked [x]>
 1. Run python app.py
 2. Log in as demo@sawings.com / demo123
 3. <specific steps from the spec to verify this feature works>
+
+## How this was built
+_From the Claude Code session that shipped this PR; earlier sessions are not included._
+
+<SESSION_STORY, as is>
 ```
+Leave out "How this was built" if Step 5 was skipped.
 
 Report: "✓ PR created — <PR URL>"
 
-## Step 6 — Merge PR via GitHub MCP
+## Step 7 — Merge PR via GitHub MCP
 Use the GitHub MCP server to merge the pull request
 just created. Use squash merge.
 
 Report: "✓ PR merged to main"
 
-## Step 7 — Delete remote branch via GitHub MCP
+## Step 8 — Delete remote branch via GitHub MCP
 Use the GitHub MCP server to delete CURRENT_BRANCH
 from GitHub after the merge.
 
 Report: "✓ Remote branch deleted"
 
-## Step 8 — Switch to main and pull
+## Step 9 — Switch to main and pull
 ```bash
 git checkout main
 git pull origin main
 ```
 Report: "✓ Switched to main — up to date"
 
-## Step 9 — Delete local feature branch
+## Step 10 — Delete local feature branch
 ```bash
 git branch -D CURRENT_BRANCH
 ```
@@ -104,6 +132,7 @@ Print:
 /ship-feature complete
 ✓ Committed — <message>
 ✓ Pushed — <branch>
+✓ Session story exported (or ⚠ skipped — <reason>)
 ✓ PR created and merged
 ✓ Remote branch deleted
 ✓ Switched to main
