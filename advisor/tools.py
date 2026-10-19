@@ -415,6 +415,29 @@ def check_scope(proposed, snapshot, question):
                 )
 
 
+# A field, op or tool name, as the model copies it from a tool result.
+_FIELD_NAME = re.compile(r"\b[a-z]+(?:_[a-z]+)+\b")
+
+
+def check_summary(summary, snapshot, question, proposed):
+    """Reject a summary that shows the user a field or tool name.
+
+    Seen in the app: "Option A: target_amount 800". Names the user chose (a
+    Goal called "road_trip") and words from the question are allowed.
+    """
+    allowed = " ".join(
+        [question or ""]
+        + [item["name"] for item in snapshot["goals"] + snapshot["obligations"]]
+        + [str(change.get("name") or "") for change in proposed]
+    ).lower()
+    raw = sorted({w for w in _FIELD_NAME.findall(summary.lower()) if w not in allowed})
+    if raw:
+        raise ToolError(
+            f"The summary is read by the user: do not use field or tool names ({', '.join(raw)}). "
+            "Write plain words, like 'a target amount of 800 €', not 'target_amount 800'."
+        )
+
+
 # ---------------------------------------------------------------- dispatch
 
 
@@ -422,7 +445,7 @@ def dispatch(name, raw_arguments, snapshot, today, question=""):
     """Run one tool call. Returns (result_dict, is_final).
 
     `question` is the user's question; final_answer checks proposals
-    against it (check_scope).
+    against it (check_scope) and the summary's wording (check_summary).
     """
     try:
         args = json.loads(raw_arguments or "{}")
@@ -462,6 +485,7 @@ def dispatch(name, raw_arguments, snapshot, today, question=""):
                 raise ToolError("summary is required: explain the answer to the user.")
             if len(summary) > MAX_SUMMARY_LENGTH:
                 raise ToolError(f"summary must be {MAX_SUMMARY_LENGTH} characters or fewer.")
+            check_summary(summary, snapshot, question, proposed)
             return {"verdict": args["verdict"], "summary": summary,
                     "proposed_changes": proposed}, True
         return {"error": f"Unknown tool {name!r}."}, False
