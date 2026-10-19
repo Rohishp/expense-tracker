@@ -180,5 +180,8 @@ tests/               pytest, one file per feature
 - **One model evaluated.** All advisor evals so far use `gpt-5-nano`.
 - **Advisor scope.** It cannot yet propose Dependencies, Top-ups or Savings Pot changes. The planner already supports them, so the agent's numbers stay correct.
 
-<!-- TODO: ## Author -->
-<!-- TODO: Rohish · LinkedIn · email -->
+---
+
+## Author
+
+**Rohish** · [LinkedIn](https://www.linkedin.com/in/rohish-pariyarath-223b26158/) · [mail4rohish@gmail.com](mailto:mail4rohish@gmail.com)
