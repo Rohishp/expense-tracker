@@ -91,6 +91,26 @@ def test_final_answer_without_a_summary_goes_back_to_the_model():
     assert result.summary == "Fits."
 
 
+def test_a_summary_with_field_names_goes_back_to_the_model():
+    # Seen in the app: "Option A: target_amount 800 (Nice-to-have)".
+    model = ScriptedModel([
+        call("final_answer", {"verdict": "yes", "summary": "Option A: target_amount 800.",
+                              "proposed_changes": []}),
+        call("final_answer", {"verdict": "yes", "summary": "Option A: a target amount of 800 €.",
+                              "proposed_changes": []}),
+    ])
+    result = run_advisor("?", BASE, model, TODAY)
+    assert "target_amount" in json.loads(model.seen[1][-1]["content"])["error"]
+    assert result.summary == "Option A: a target amount of 800 €."
+
+
+def test_a_goal_name_the_user_chose_is_not_a_field_name():
+    args = {"verdict": "yes", "summary": "Add road_trip.",
+            "proposed_changes": [dict(CAMERA, name="road_trip")]}
+    result, is_final = dispatch("final_answer", json.dumps(args), BASE, TODAY, "Can I add a 900 euro trip?")
+    assert is_final, result
+
+
 def _final(question, changes):
     args = {"verdict": "yes", "summary": "x", "proposed_changes": changes}
     return dispatch("final_answer", json.dumps(args), BASE, TODAY, question)

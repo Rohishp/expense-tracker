@@ -50,6 +50,10 @@ only return `proposed_changes`; saving needs a confirm request, which
   amount or as the change ("rent goes up by 200").
 - An Obligation or Goal may be removed only if the question names it.
 
+It also rejects a summary that shows the user a field or tool name, such as
+"target_amount 800" copied from a tool result (`check_summary`). Names the
+user chose and words from the question are allowed.
+
 A rejection goes back to the model so it can answer again. `simulate_plan`
 is not checked, so the model can still explore. The guard cannot catch a
 number that the question uses for something else: asked for "6000 euros for

@@ -42,6 +42,8 @@ Rules:
   and propose no changes.
 - Use these words exactly: Income, Obligation, Goal, Deadline, Importance,
   Installment, Surplus, Unreachable Goal, Top-up, Plan.
+- Write the summary for the user in plain words, never field or tool
+  names: "a target amount of 800 €", not "target_amount 800".
 - Finish by calling final_answer exactly once."""
 
 

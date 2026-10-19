@@ -170,6 +170,7 @@ Unreachable or a Top-up is paused (7 runs). Next steps are in
 | A redirect is checked against money still free from its start date | The same money can't be redirected twice | spec 14 |
 | The advisor has no write tool | Safety by structure, not by prompt | `docs/advisor.md` |
 | `final_answer` rejects Income or Obligation amounts the question did not give, and removals it did not name | A model can ignore a prompt rule but not a guard; `simulate_plan` stays unchecked so the model can still explore | `docs/advisor.md` |
+| `final_answer` rejects a summary with field or tool names | The model copied "target_amount 800" from tool results into the answer the user reads | `docs/advisor.md` |
 | The Importance grader checks only words attached to a Goal name | Nearest-name matching flagged 9 summaries, 8 of them wrongly | `advisor/evals.py` |
 | Evals use code graders, pass^k and a reference answer per task | Scores mean the same every time; users need consistency; a failing task must be fair | `advisor/evals.py` |
 | `temperature` left out for `gpt-5*` models | The API rejects 0 for them (seen as a 400 error) | `advisor/openai_client.py` |
